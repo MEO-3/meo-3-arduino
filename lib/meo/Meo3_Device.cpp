@@ -70,7 +70,7 @@ bool MeoDevice::start() {
     }
 
     // Try to load credentials from storage
-    if (_storage.loadCredentials(_deviceId, _transmitKey)) {
+    if (_loadCredentials(_deviceId, _transmitKey)) {
         _log("INFO", "Loaded existing credentials");
         _registered = true;
     } else {
@@ -79,7 +79,7 @@ bool MeoDevice::start() {
             _log("ERROR", "Registration failed");
             return false;
         }
-        _storage.saveCredentials(_deviceId, _transmitKey);
+        _saveCredentials(_deviceId, _transmitKey);
         _registered = true;
         _log("INFO", "Registered and saved credentials");
     }
@@ -162,4 +162,14 @@ void MeoDevice::_log(const char* level, const char* msg) {
         Serial.print("] ");
         Serial.println(msg);
     }
+}
+
+bool MeoDevice::_loadCredentials(String& deviceIdOut, String& transmitKeyOut) {
+    bool deviceIdOk = _storage.loadString("device_id", deviceIdOut);
+    bool transmitKeyOk = _storage.loadString("tx_key", transmitKeyOut);
+}
+
+bool MeoDevice::_saveCredentials(const String& deviceId, const String& transmitKey) {
+    bool deviceIdOk = _storage.saveString("device_id", deviceId);
+    bool transmitKeyOk = _storage.saveString("tx_key", transmitKey);
 }

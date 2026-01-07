@@ -64,4 +64,7 @@ private:
     bool _mqttReady;
 
     void _log(const char* level, const char* msg);
+
+    bool _loadCredentials(String& deviceIdOut, String& transmitKeyOut);
+    bool _saveCredentials(const String& deviceId, const String& transmitKey);
 };
