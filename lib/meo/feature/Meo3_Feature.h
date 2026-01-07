@@ -15,7 +15,7 @@
  */
 class MeoFeature {
 public:
-    // Callback invoked on feature calls from the platform
+    // Callback invoked on feature calls from the platform (no request_id)
     typedef void (*FeatureCallback)(
         const char* featureName,
         const char* deviceId,
@@ -39,7 +39,7 @@ public:
                       const char* const* values,
                       uint8_t count);
 
-    // Send a feature response
+    // Send a feature response (no request_id)
     bool sendFeatureResponse(const char* featureName,
                              bool success,
                              const char* message);
@@ -51,12 +51,12 @@ public:
     static void onRawMessage(const char* topic, const uint8_t* payload, unsigned int length, void* ctx);
 
 private:
-    MeoMqttClient*     _mqtt = nullptr;
-    const char*  _deviceId = nullptr;
+    MeoMqttClient* _mqtt = nullptr;
+    const char*    _deviceId = nullptr;
 
     // Reusable JSON buffer
     static constexpr size_t BUF_SIZE = 512;
-    char          _buf[BUF_SIZE];
+    char _buf[BUF_SIZE];
 
     // Feature callback and context
     FeatureCallback _cb = nullptr;

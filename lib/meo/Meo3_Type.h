@@ -30,7 +30,7 @@ struct MeoFeatureCall {
     String deviceId;
     String featureName;
     MeoEventPayload params;   // raw string values; user can parse as needed
-    String requestId;         // if you define correlation IDs
+    // requestId removed to simplify API and payloads
 };
 
 // Callback type for feature handlers

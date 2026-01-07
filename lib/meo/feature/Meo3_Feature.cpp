@@ -48,8 +48,8 @@ bool MeoFeature::sendFeatureResponse(const char* featureName,
 
     StaticJsonDocument<BUF_SIZE> doc;
     doc["feature_name"] = featureName;
-    doc["device_id"] = _deviceId;
-    doc["success"]    = success;
+    doc["device_id"]    = _deviceId;
+    doc["success"]      = success;
     if (message) doc["message"] = message;
 
     size_t len = serializeJson(doc, _buf, sizeof(_buf));
@@ -74,7 +74,6 @@ void MeoFeature::_dispatchFeatureInvoke(const char* topic, const uint8_t* payloa
     if (!_cb || !_deviceId) return;
 
     // Expect "meo/{device_id}/feature/{featureName}/invoke"
-    // Extract featureName between "/feature/" and "/invoke"
     const char* featureMarker = strstr(topic, "/feature/");
     const char* invokeMarker  = strstr(topic, "/invoke");
     if (!featureMarker || !invokeMarker || invokeMarker <= featureMarker) return;
@@ -107,10 +106,6 @@ void MeoFeature::_dispatchFeatureInvoke(const char* topic, const uint8_t* payloa
         }
     }
 
-    const char* requestId = nullptr;
-    if (doc.containsKey("request_id")) {
-        requestId = doc["request_id"].as<const char*>();
-    }
-
+    // No request_id parsing anymore
     _cb(featureName, _deviceId, keys, values, count, _cbCtx);
 }

@@ -122,6 +122,16 @@ void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
     }
 }
 
+void MeoBleProvision::_updateStatus() {
+    snprintf(_statusBuf, sizeof(_statusBuf),
+             "WiFi: %s\nMQTT: %s",
+             _wifiStatus, _mqttStatus);
+    if (_chProg) {
+        _chProg->setValue(_statusBuf);
+        _chProg->notify();
+    }
+}
+
 void MeoBleProvision::_log(const char* level, const char* msg) const {
     #if defined(ARDUINO)
         Serial.printf("[%s] %s\n", level, msg);
