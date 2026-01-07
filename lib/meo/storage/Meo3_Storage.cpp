@@ -49,6 +49,36 @@ bool MeoStorage::saveString(const char* key, const String& value) {
     return (written > 0);
 }
 
+// NEW: C-string helpers
+bool MeoStorage::saveCString(const char* key, const char* value) {
+    if (!_initialized || !key || !value) return false;
+
+    // Avoid redundant write
+    if (_prefs.isKey(key)) {
+        String current = _prefs.getString(key, "");
+        if (current.equals(value)) return true;
+    }
+    // Preferences::putString(const char* key, const char* value)
+    size_t written = _prefs.putString(key, value);
+    return (written > 0);
+}
+
+bool MeoStorage::loadCString(const char* key, char* buffer, size_t bufferLen) {
+    if (!_initialized || !key || !buffer || bufferLen == 0) return false;
+    if (!_prefs.isKey(key)) return false;
+
+    // Read to a temporary String to check size and avoid truncation
+    String s = _prefs.getString(key, "");
+    size_t needed = s.length() + 1; // include NUL terminator
+    if (needed > bufferLen) {
+        // Caller buffer too small
+        return false;
+    }
+    // Safe copy including terminator
+    memcpy(buffer, s.c_str(), needed);
+    return true;
+}
+
 bool MeoStorage::loadShort(const char* key, int16_t& valueOut) {
     if (!_initialized || !key) return false;
     if (!_prefs.isKey(key)) return false;

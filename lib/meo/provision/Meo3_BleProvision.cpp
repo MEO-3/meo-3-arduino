@@ -101,29 +101,30 @@ void MeoBleProvision::_onWriteStatic(NimBLECharacteristic* ch, void* ctx) {
 void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
     const NimBLEUUID& uuid = ch->getUUID();
     std::string val = ch->getValue();
-    const char* cstr = val.c_str();
+    String s(val.c_str());
+    s.trim(); // strip CR/LF and spaces
 
     if (uuid.equals(NimBLEUUID(CH_UUID_WIFI_SSID))) {
-        _storage->saveString("wifi_ssid", String(cstr));
+        _storage->saveString("wifi_ssid", s);
         _ssidWritten = true;
         _logger("INFO", "SSID updated");
         _scheduleRebootIfReady();
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_WIFI_PASS))) {
-        _storage->saveString("wifi_pass", String(cstr));
+        _storage->saveString("wifi_pass", s);
         _passWritten = true;
         _logger("INFO", "PASS updated");
         _scheduleRebootIfReady();
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_DEV_ID))) {
-        _storage->saveString("device_id", String(cstr));
+        _storage->saveString("device_id", s);
         _logger("INFO", "Device ID updated");
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_TX_KEY))) {
-        _storage->saveString("tx_key", String(cstr));
+        _storage->saveString("tx_key", s);
         _logger("INFO", "Transmit Key updated");
         return;
     }

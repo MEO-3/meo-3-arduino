@@ -17,6 +17,9 @@ public:
     bool loadString(const char* key, String& valueOut);
     bool saveString(const char* key, const String& value);
 
+    bool saveCString(const char* key, const char* value);
+    bool loadCString(const char* key, char* buffer, size_t bufferLen);
+
     bool loadShort(const char* key, int16_t& valueOut);
     bool saveShort(const char* key, int16_t value);
 
