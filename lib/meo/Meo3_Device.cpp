@@ -118,12 +118,18 @@ bool MeoDevice::start() {
         return false;
     }
 
+    // PATCH: stop BLE advertising once WiFi is connected (if BLE was already advertising)
+    if (_wifiReady) {
+        _prov.stopAdvertising();
+        _log("INFO", "DEVICE", "WiFi connected; stopped BLE advertising");
+    }
+
     // MQTT connect + declare
     return _connectMqttAndDeclare();
 }
 
 void MeoDevice::loop() {
-    _prov.loop();
+    // _prov.loop(); // BLE provisioning loop unused because after mqtt connect success we stop advertising
     _mqtt.loop();
 
     // Update BLE status on change
@@ -232,7 +238,7 @@ bool MeoDevice::_connectMqttAndDeclare() {
     // LWT: status offline retained
     {
         String willTopic = String("meo/") + _deviceId + "/status";
-        _mqtt.setWill(willTopic.c_str(), "offline", 0, true);
+        _mqtt.setWill(willTopic.c_str(), "offline", 0, false);
     }
 
     if (!_mqtt.connect()) {

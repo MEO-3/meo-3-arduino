@@ -26,18 +26,6 @@ bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage,
     return true;
 }
 
-bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage) {
-    _ble = ble; _storage = storage;
-    if (!_ble || !_storage || !_storage->begin()) return false;
-    if (!_createServiceAndCharacteristics()) return false;
-    _bindWriteHandlers();
-    _svc->start();
-    _loadInitialValues();
-    _updateStatus();
-    _logger("INFO", "BLE Provisioning service started (fallback)");
-    return true;
-}
-
 bool MeoBleProvision::_createServiceAndCharacteristics() {
     _svc = _ble->createService(MEO_BLE_PROV_SERV_UUID);
     if (!_svc) return false;
@@ -143,7 +131,7 @@ void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
 
 void MeoBleProvision::_updateStatus() {
     snprintf(_statusBuf, sizeof(_statusBuf),
-             "WiFi: %s\nMQTT: %s",
+             "WiFi: %s, MQTT: %s",
              _wifiStatus, _mqttStatus);
     if (_chProg) {
         _chProg->setValue(_statusBuf);

@@ -38,6 +38,7 @@ void setup() {
     meo.setDeviceInfo("DIY Sensor", "ThingAI Lab");
     meo.setGateway("meo-open-service.local", 1883);
     meo.setLogger(meoLogger);
+    meo.setDebugTags("DEVICE,MQTT,PROV");
 
     meo.addFeatureMethod("turn_on_led", onTurnOn);
     meo.addFeatureEvent("humid_temp_update");
