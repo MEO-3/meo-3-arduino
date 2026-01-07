@@ -55,5 +55,6 @@ void loop() {
         p["temperature"] = String(random(200, 300) / 10);
         p["humidity"]    = String(random(400, 600) / 10);
         bool success = meo.publishEvent("humid_temp_update", p);
+        meoLogger("INFO", success ? "Published humid_temp_update event" : "Failed to publish event");
     }
 }
