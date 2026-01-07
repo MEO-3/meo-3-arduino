@@ -1,10 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
-#include "Meo3_Type.h"
-#include "Meo3_Registration.h"
-#include "Meo3_Mqtt.h"
-#include "Meo3_Storage.h"
+#include "core/Meo3_Type.h"
+#include "registration/Meo3_Registration.h"
+#include "mqtt/Meo3_Mqtt.h"
+#include "storage/Meo3_Storage.h"
 
 class MeoDevice {
 public:
