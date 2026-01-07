@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
-#include "Meo3_Type.h"   // MeoFeatureCall, MeoEventPayload, MeoFeatureCallback, MeoConnectionType
+#include "Meo3_Type.h"   // MeoFeatureCall, MeoEventPayload, MeoFeatureCallback, MeoConnectionType, MeoLogFunction
 #include "storage/Meo3_Storage.h"
 #include "ble/Meo3_Ble.h"
 #include "provision/Meo3_BleProvision.h"
@@ -20,9 +20,13 @@ class MeoDevice {
 public:
     MeoDevice();
 
+    // Logging
+    void setLogger(MeoLogFunction logger);
+    // CSV of tags to enable DEBUG logs for (e.g. "DEVICE,MQTT,PROV")
+    void setDebugTags(const char* tagsCsv);
+
     // Device info for declare and BLE RO fields
-    void setDeviceInfo(const char* label,
-                       const char* model,
+    void setDeviceInfo(const char* model,
                        const char* manufacturer);
 
     // Optional: provide WiFi upfront; otherwise BLE provisioning can set it
@@ -44,15 +48,12 @@ public:
                       const char* const* keys,
                       const char* const* values,
                       uint8_t count);
-
-    // Convenience (old API style)
     bool publishEvent(const char* eventName, const MeoEventPayload& payload);
 
     // Send feature response
     bool sendFeatureResponse(const char* featureName,
                              bool success,
                              const char* message);
-
     bool sendFeatureResponse(const MeoFeatureCall& call,
                              bool success,
                              const char* message);
@@ -63,13 +64,12 @@ public:
 
 private:
     // Config
-    const char* _label = nullptr;
     const char* _model = nullptr;
     const char* _manufacturer = nullptr;
 
     const char* _wifiSsid = nullptr;
     const char* _wifiPass = nullptr;
-    const char* _gatewayHost = "meo-open-service.local";
+    const char* _gatewayHost = "meo-open-service";
     uint16_t    _mqttPort = 1883;
 
     // Identity (from BLE/app)
@@ -93,6 +93,10 @@ private:
     // State
     bool _wifiReady = false;
 
+    // Logging
+    MeoLogFunction _logger = nullptr;
+    char           _debugTags[96] = {0}; // CSV list of enabled DEBUG tags
+
     // Internals
     void _updateBleStatus();
     bool _connectMqttAndDeclare();
@@ -101,4 +105,9 @@ private:
     // MQTT message adapter: parse invoke and dispatch MeoFeatureCall
     static void _mqttThunk(const char* topic, const uint8_t* payload, unsigned int length, void* ctx);
     void _dispatchInvoke(const char* topic, const uint8_t* payload, unsigned int length);
+
+    // Logging helpers
+    bool _debugTagEnabled(const char* tag) const;
+    void _log(const char* level, const char* tag, const char* msg) const;
+    void _logf(const char* level, const char* tag, const char* fmt, ...) const;
 };

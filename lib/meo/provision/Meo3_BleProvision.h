@@ -4,6 +4,7 @@
 #include <NimBLEDevice.h>
 #include "../storage/Meo3_Storage.h"
 #include "../ble/Meo3_Ble.h"
+#include "../Meo3_Type.h" // MeoLogFunction
 
 // Provisioning service UUID (stable across all devices)
 #define MEO_BLE_PROV_SERV_UUID      "9f27f7f0-0000-1000-8000-00805f9b34fb" // Service UUID
@@ -34,12 +35,15 @@ class MeoBleProvision {
 public:
     MeoBleProvision() = default;
 
+    // Logging
+    void setLogger(MeoLogFunction logger);
+    void setDebugTags(const char* tagsCsv); // enables DEBUG for "PROV" when tag present
+
     // Initialize with BLE and storage; model/manuf taken from device config (recommended)
-    // Returns false if service creation fails
     bool begin(MeoBle* ble, MeoStorage* storage,
                const char* devModel, const char* devManufacturer);
 
-    // Fallback initializer (will try to load model/manuf from storage if present)
+    // Fallback initializer
     bool begin(MeoBle* ble, MeoStorage* storage);
 
     // Start/stop advertising through base BLE
@@ -59,18 +63,17 @@ private:
     MeoBle*            _ble      = nullptr;
     MeoStorage*        _storage  = nullptr;
 
-    // Device static info provided by config (preferred)
     const char*        _devModel = nullptr;
     const char*        _devManuf = nullptr;
 
     NimBLEService*         _svc      = nullptr;
-    NimBLECharacteristic*  _chSsid   = nullptr;  // RW
-    NimBLECharacteristic*  _chPass   = nullptr;  // WO
-    NimBLECharacteristic*  _chModel  = nullptr;  // RO
-    NimBLECharacteristic*  _chManuf  = nullptr;  // RO
-    NimBLECharacteristic*  _chDevId  = nullptr;  // RW
-    NimBLECharacteristic*  _chTxKey  = nullptr;  // WO
-    NimBLECharacteristic*  _chProg   = nullptr;  // R+Notify
+    NimBLECharacteristic*  _chSsid   = nullptr;
+    NimBLECharacteristic*  _chPass   = nullptr;
+    NimBLECharacteristic*  _chModel  = nullptr;
+    NimBLECharacteristic*  _chManuf  = nullptr;
+    NimBLECharacteristic*  _chDevId  = nullptr;
+    NimBLECharacteristic*  _chTxKey  = nullptr;
+    NimBLECharacteristic*  _chProg   = nullptr;
 
     const char*         _wifiStatus = "unknown";
     const char*         _mqttStatus = "unknown";
@@ -83,13 +86,17 @@ private:
     bool                _rebootScheduled = false;
     uint32_t            _rebootAtMs = 0;
 
+    // Logging
+    MeoLogFunction _logger = nullptr;
+    char           _debugTags[96] = {0};
+
     // Internal lifecycle
     bool _createServiceAndCharacteristics();
     void _bindWriteHandlers();
     void _loadInitialValues();
     void _updateStatus();
     void _scheduleRebootIfReady();
-    void _log(const char* level, const char* msg) const;
+    bool _debugTagEnabled(const char* tag) const;
 
     // Write callbacks
     static void _onWriteStatic(NimBLECharacteristic* ch, void* ctx);

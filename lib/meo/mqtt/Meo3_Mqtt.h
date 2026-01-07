@@ -3,21 +3,24 @@
 #include <Arduino.h>
 #include <WiFiClient.h>
 #include <PubSubClient.h>
+#include "../Meo3_Type.h" // MeoLogFunction
 
 /**
  * MeoMqtt: minimal MQTT transport wrapper around PubSubClient.
  * - Keeps RAM/flash low
  * - Clean separation from device/feature logic
  * - Delivers raw messages via a lightweight function pointer callback
- *
- * Note: Internally uses a static callback thunk due to PubSubClient API,
- * so only one active MeoMqtt instance should be used at a time.
  */
 class MeoMqttClient {
 public:
     typedef void (*OnMessageFn)(const char* topic, const uint8_t* payload, unsigned int length, void* ctx);
 
     MeoMqttClient();
+
+    // Logging
+    void setLogger(MeoLogFunction logger);
+    void setDebugTags(const char* tagsCsv); // enables DEBUG for "MQTT" when tag present
+
     // Configure broker host and port
     void configure(const char* host, uint16_t port = 1883);
 
@@ -70,8 +73,15 @@ private:
     OnMessageFn  _onMessage = nullptr;
     void*        _onMessageCtx = nullptr;
 
-    // PubSubClient requires a free function for callback; use a static thunk
+    // Logging
+    MeoLogFunction _logger = nullptr;
+    char           _debugTags[96] = {0};
+
     static MeoMqttClient* _self;
     static void _pubsubThunk(char* topic, uint8_t* payload, unsigned int length);
     void _invokeMessageHandler(char* topic, uint8_t* payload, unsigned int length);
+
+    bool _debugTagEnabled(const char* tag) const;
+    void _log(const char* level, const char* tag, const char* msg) const;
+    void _logf(const char* level, const char* tag, const char* fmt, ...) const;
 };

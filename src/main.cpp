@@ -35,8 +35,9 @@ void setup() {
 
     pinMode(LED_BUILTIN, OUTPUT);
 
-    meo.setDeviceInfo("DIY Sensor", "Test MEO Module", "ThingAI Lab");
+    meo.setDeviceInfo("DIY Sensor", "ThingAI Lab");
     meo.setGateway("meo-open-service.local", 1883);
+    meo.setLogger(meoLogger);
 
     meo.addFeatureMethod("turn_on_led", onTurnOn);
     meo.addFeatureEvent("humid_temp_update");
@@ -53,6 +54,6 @@ void loop() {
         MeoEventPayload p;
         p["temperature"] = String(random(200, 300) / 10);
         p["humidity"]    = String(random(400, 600) / 10);
-        meo.publishEvent("humid_temp_update", p);
+        bool success = meo.publishEvent("humid_temp_update", p);
     }
 }

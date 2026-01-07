@@ -1,26 +1,46 @@
 #include "Meo3_BleProvision.h"
+#include <stdarg.h>
 
-bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage, const char* devModel, const char* devManufacturer) {
+void MeoBleProvision::setLogger(MeoLogFunction logger) {
+    _logger = logger;
+}
+void MeoBleProvision::setDebugTags(const char* tagsCsv) {
+    if (!tagsCsv) { _debugTags[0] = '\0'; return; }
+    strncpy(_debugTags, tagsCsv, sizeof(_debugTags) - 1);
+    _debugTags[sizeof(_debugTags) - 1] = '\0';
+}
+
+bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage,
+                            const char* devModel, const char* devManufacturer) {
     _ble = ble;
     _storage = storage;
     _devModel = devModel;
     _devManuf = devManufacturer;
-
     if (!_ble || !_storage || !_storage->begin()) return false;
     if (!_createServiceAndCharacteristics()) return false;
-
     _bindWriteHandlers();
     _svc->start();
-
     _loadInitialValues();
+    _updateStatus();
+    _logger("INFO", "BLE Provisioning service started");
+    return true;
+}
 
+bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage) {
+    _ble = ble; _storage = storage;
+    if (!_ble || !_storage || !_storage->begin()) return false;
+    if (!_createServiceAndCharacteristics()) return false;
+    _bindWriteHandlers();
+    _svc->start();
+    _loadInitialValues();
+    _updateStatus();
+    _logger("INFO", "BLE Provisioning service started (fallback)");
     return true;
 }
 
 bool MeoBleProvision::_createServiceAndCharacteristics() {
     _svc = _ble->createService(MEO_BLE_PROV_SERV_UUID);
     if (!_svc) return false;
-
 
     // Per your spec: SSID RW, PASS WO, Model/Manuf RO, DevID RW, TxKey WO, Prog R+Notify
     _chSsid  = _ble->createCharacteristic(_svc, CH_UUID_WIFI_SSID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
@@ -44,16 +64,6 @@ void MeoBleProvision::_bindWriteHandlers() {
 void MeoBleProvision::startAdvertising() { if (_ble) _ble->startAdvertising(); }
 void MeoBleProvision::stopAdvertising()  { if (_ble) _ble->stopAdvertising();  }
 
-void MeoBleProvision::setRuntimeStatus(const char* wifi, const char* mqtt) {
-    if (wifi) _wifiStatus = wifi;
-    if (mqtt) _mqttStatus = mqtt;
-}
-
-void MeoBleProvision::setAutoRebootOnProvision(bool enable, uint32_t delayMs) {
-    _autoReboot = enable;
-    _rebootDelayMs = delayMs;
-}
-
 void MeoBleProvision::loop() {
     // Status notify every ~2 seconds
     static uint32_t lastStatus = 0;
@@ -62,11 +72,21 @@ void MeoBleProvision::loop() {
         lastStatus = millis();
     }
     // Execute scheduled reboot
-    if (_rebootScheduled && millis() >= _rebootAtMs) {
-        _log("INFO", "Reboot now");
+    if (_autoReboot && _rebootScheduled && millis() >= _rebootAtMs) {
+        _logger("INFO", "Reboot now");
         delay(100);
         ESP.restart();
     }
+}
+
+void MeoBleProvision::setRuntimeStatus(const char* wifi, const char* mqtt) {
+    _wifiStatus = wifi ? wifi : _wifiStatus;
+    _mqttStatus = mqtt ? mqtt : _mqttStatus;
+}
+
+void MeoBleProvision::setAutoRebootOnProvision(bool enable, uint32_t delayMs) {
+    _autoReboot = enable;
+    _rebootDelayMs = delayMs;
 }
 
 void MeoBleProvision::_loadInitialValues() {
@@ -79,11 +99,10 @@ void MeoBleProvision::_loadInitialValues() {
 
 void MeoBleProvision::_scheduleRebootIfReady() {
     if (!_autoReboot) return;
-
     if (_ssidWritten && _passWritten && !_rebootScheduled) {
         _rebootScheduled = true;
         _rebootAtMs = millis() + _rebootDelayMs;
-        _log("INFO", "Provisioning complete; scheduling reboot");
+        _logger("INFO", "Provisioning complete; scheduling reboot");
     }
 }
 
@@ -99,25 +118,25 @@ void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
     if (uuid.equals(NimBLEUUID(CH_UUID_WIFI_SSID))) {
         _storage->saveString("wifi_ssid", String(cstr));
         _ssidWritten = true;
-        _log("INFO", "SSID updated");
+        _logger("INFO", "SSID updated");
         _scheduleRebootIfReady();
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_WIFI_PASS))) {
         _storage->saveString("wifi_pass", String(cstr));
         _passWritten = true;
-        _log("INFO", "PASS updated");
+        _logger("INFO", "PASS updated");
         _scheduleRebootIfReady();
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_DEV_ID))) {
         _storage->saveString("device_id", String(cstr));
-        _log("INFO", "Device ID updated");
+        _logger("INFO", "Device ID updated");
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_TX_KEY))) {
         _storage->saveString("tx_key", String(cstr));
-        _log("INFO", "Transmit Key updated");
+        _logger("INFO", "Transmit Key updated");
         return;
     }
 }
@@ -130,12 +149,17 @@ void MeoBleProvision::_updateStatus() {
         _chProg->setValue(_statusBuf);
         _chProg->notify();
     }
+    if (_logger && _debugTagEnabled("PROV")) {
+        _logger("DEBUG", _statusBuf);
+    }
 }
 
-void MeoBleProvision::_log(const char* level, const char* msg) const {
-    #if defined(ARDUINO)
-        Serial.printf("[%s] %s\n", level, msg);
-    #else
-        (void)level; (void)msg;
-    #endif
+bool MeoBleProvision::_debugTagEnabled(const char* tag) const {
+    if (!_debugTags[0]) return false;
+    const char* p = strstr(_debugTags, tag);
+    if (!p) return false;
+    bool leftOk  = (p == _debugTags) || (*(p - 1) == ',');
+    const char* end = p + strlen(tag);
+    bool rightOk = (*end == '\0') || (*end == ',');
+    return leftOk && rightOk;
 }
