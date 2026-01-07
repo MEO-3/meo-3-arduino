@@ -1,147 +1,274 @@
-# MEO 3 Library for Arduino Framework (platform: espressif32)
+# MEO 3 Arduino Library (ESP32)
 
-This is the official MEO 3 library for Arduino framework, designed to facilitate seamless integration of DIY devices with the MEO platform. This library provides essential functionalities to connect, communicate, and manage IoT devices effectively.
+MEO 3 Arduino is a minimal, production‑oriented SDK for connecting ESP32 devices to the MEO Open Service via MQTT. It focuses on:
+- Simple feature method callbacks (MeoFeatureCall)
+- Lightweight event publishing (MeoEventPayload)
+- Built‑in BLE provisioning for Wi‑Fi and device credentials
+- Clear logging with optional debug tags
+
+This README reflects the current APIs in the repository.
+
+---
 
 ## Features
-- Easy connection to MEO platform
-- MQTT communication support
-- JSON data handling
-- Device management utilities
-- Compatible with ESP32-based boards
 
-## Installation
+- Wi‑Fi and MQTT connection management
+- BLE provisioning service to set SSID/PASS and credentials
+- Feature Methods (server → device) via callbacks
+- Feature Events (device → server) via MQTT topics
+- JSON payloads with small, fixed buffers
+- Logger hook and tag‑filtered DEBUG logs: DEVICE, MQTT, PROV
 
-Currently, the library can be installed manually by downloading the source code and adding it to your Arduino libraries folder.
-1. Download the library source code from the repository.
-2. Extract the contents to your Arduino libraries directory (usually located at `Documents/Arduino/libraries`).
-3. Restart the Arduino IDE to recognize the new library. 
+---
 
+## Requirements
 
-## Usage Guide
+- ESP32 board (Arduino framework)
+- MQTT broker (used by MEO Open Service)
+- Arduino libraries:
+  - WiFi (ESP32)
+  - PubSubClient
+  - ArduinoJson
+  - NimBLE-Arduino (via Meo3_Ble/Meo3_BleProvision)
 
-This library simplifies connecting ESP32 and other Arduino-framework devices to the MEO Open Service platform. It handles WiFi connection, device registration, and MQTT communication automatically.
+---
 
-### 1. Include the Library
+## Install
+
+- Clone or download this repository into Arduino libraries:
+  - Documents/Arduino/libraries/meo-3-arduino (typical)
+- Restart Arduino IDE
+
+---
+
+## Quick Start
+
+Minimal device that declares one feature method and publishes an event.
 
 ```cpp
-#include <Meo3_Device.h>
-#include <WiFi.h> // Ensure WiFi is included for ESP32
-```
+#include <Arduino.h>
+#include "Meo3_Device.h"
 
-### 2. Create the Device Object
+#define LED_BUILTIN 8
 
-Instantiate the `MeoDevice` class globally.
-
-```cpp
 MeoDevice meo;
-```
 
-### 3. Define Feature Callbacks (Optional)
-
-If your device needs to **receive commands** (e.g., turn on a light), define a callback function. This function is called whenever the MEO platform sends a command to your device.
-
-```cpp
+// Feature method callback (server → device)
 void onTurnOn(const MeoFeatureCall& call) {
-    Serial.println("Received 'turn_on' command!");
+  Serial.println("Feature 'turn_on_led' invoked");
+  digitalWrite(LED_BUILTIN, HIGH);
 
-    // Access parameters sent from the platform
-    for (const auto& kv : call.params) {
-        Serial.print(kv.first); // Parameter Key
-        Serial.print(" = ");
-        Serial.println(kv.second); // Parameter Value
-    }
+  // Inspect params (String → String map)
+  for (const auto& kv : call.params) {
+    Serial.print("  ");
+    Serial.print(kv.first);
+    Serial.print(" = ");
+    Serial.println(kv.second);
+  }
 
-    // Perform your hardware action here
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    // Send a response back to the platform
-    meo.sendFeatureResponse(call, true, "Device turned on successfully");
+  meo.sendFeatureResponse(call, true, "LED turned on");
 }
-```
 
-### 4. Setup
-
-In your `setup()` function, configure the connection and register your device's features.
-
-```cpp
 void setup() {
-    Serial.begin(115200);
+  Serial.begin(115200);
+  delay(500);
 
-    // 1. (Optional) Enable logging to Serial for debugging
-    meo.setLogger([](const char* level, const char* msg) {
-        Serial.printf("[%s] %s\n", level, msg);
-    });
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
 
-    // 2. Connect to WiFi
-    meo.beginWifi("YOUR_WIFI_SSID", "YOUR_WIFI_PASSWORD");
+  // Optional: structured logging
+  meo.setLogger([](const char* level, const char* msg) {
+    Serial.printf("[%s] %s\n", level, msg);
+  });
+  meo.setDebugTags("DEVICE,MQTT,PROV"); // enable DEBUG logs for selected tags
 
-    // 3. Set the Gateway Address
-    // Use the local DNS name or IP address of your MEO Gateway
-    meo.begin("meo-open-service.local", 1883); 
+  // Device metadata (no label in current API)
+  meo.setDeviceInfo("Test MEO Module", "ThingAI Lab");
 
-    // 4. Define Device Info (Metadata)
-    // Label, Model, Manufacturer, Connection Type
-    meo.setDeviceInfo("My Smart Light", "Model-X1", "Maker Lab", MeoConnectionType::LAN);
+  // Gateway (use IP if .local is unreliable on your LAN)
+  meo.setGateway("meo-open-service", 1883);
 
-    // 5. Register Features
-    // Events: Data you send TO the platform (e.g., sensor readings)
-    meo.addFeatureEvent("sensor_update");
-    
-    // Methods: Commands you receive FROM the platform (e.g., control)
-    meo.addFeatureMethod("turn_on", onTurnOn);
+  // Wi‑Fi now, or provision via BLE if you skip this
+  // meo.beginWifi("YOUR_WIFI_SSID", "YOUR_WIFI_PASS");
 
-    // 6. Start the Service
-    // This handles registration and MQTT connection automatically
-    meo.start();
+  // Declare features
+  meo.addFeatureMethod("turn_on_led", onTurnOn);
+  meo.addFeatureEvent("sensor_update");
+
+  // Start: BLE provisioning (if needed), Wi‑Fi/MQTT connect, declare
+  meo.start();
 }
-```
 
-### 5. Loop
-
-You must call `meo.loop()` in your main loop to keep the connection alive and process incoming messages.
-
-```cpp
 void loop() {
-    // Keep the library running
-    meo.loop();
+  meo.loop();
 
-    // Example: Periodically publish sensor data
-    static unsigned long lastTime = 0;
-    if (millis() - lastTime > 5000) {
-        lastTime = millis();
-
-        // Create a payload map
-        MeoEventPayload payload;
-        payload["temperature"] = "25.5";
-        payload["humidity"] = "60";
-
-        // Publish the event
-        if (meo.isMqttConnected()) {
-            meo.publishEvent("sensor_update", payload);
-            Serial.println("Sensor data sent.");
-        }
-    }
+  // Publish an event periodically
+  static uint32_t last = 0;
+  if (millis() - last > 5000 && meo.isMqttConnected()) {
+    last = millis();
+    MeoEventPayload p;
+    p["temperature"] = String(random(200, 300) / 10.0); // 20.0–30.0
+    p["humidity"]    = String(random(400, 600) / 10.0); // 40.0–60.0
+    meo.publishEvent("sensor_update", p);
+  }
 }
 ```
 
 ---
 
-## API Reference
+## BLE Provisioning Flow
 
-### Configuration
+If Wi‑Fi or credentials are missing, the device:
+1. Starts BLE advertising a provisioning service.
+2. Exposes characteristics for:
+   - wifi_ssid (RW)
+   - wifi_pass (WO)
+   - device_id (RW)
+   - tx_key (WO)
+   - model (RO)
+   - manufacturer (RO)
+   - progress/status (R + Notify)
+3. After both SSID and PASS are written, the device connects to Wi‑Fi.
+4. Once Wi‑Fi is connected, BLE advertising is stopped automatically (to reduce radio contention).
+   - To re‑provision later, reboot the device to re‑enable BLE provisioning.
 
-* **`void beginWifi(const char* ssid, const char* pass)`**: Connects the ESP32 to the specified WiFi network.
-* **`void begin(const char* host, uint16_t mqttPort)`**: Sets the MEO Gateway address and MQTT port (default 1883).
-* **`void setDeviceInfo(label, model, manufacturer, type)`**: Sets the metadata that will be displayed in the MEO Dashboard.
+Notes:
+- Write device_id and tx_key from your mobile tool/app. The library reads tx_key as the MQTT password.
+- Avoid trailing spaces and non‑printable characters when writing strings.
 
-### Features & Registration
+---
 
-* **`void addFeatureEvent(const char* name)`**: Registers an event (data stream) that this device will publish.
-* **`void addFeatureMethod(const char* name, MeoFeatureCallback cb)`**: Registers a command that this device can receive. The `cb` function is triggered when the command arrives.
+## MQTT Topics
 
-### Runtime
+For device_id = BACDIEIFIEE:
 
-* **`bool start()`**: Initiates the registration process. If the device is new, it registers with the gateway. If it's already registered, it loads credentials from storage.
-* **`void loop()`**: Handles background tasks (MQTT keep-alive, incoming messages). Must be called frequently.
-* **`bool publishEvent(const char* eventName, MeoEventPayload payload)`**: Sends data to the platform.
-* **`bool sendFeatureResponse(call, success, message)`**: Replies to a method call, indicating if the command was successful.
+- Status (retain recommended by the broker):
+  - meo/BACDIEIFIEE/status → "online" | "offline"
+- Declare (capabilities on connect):
+  - meo/BACDIEIFIEE/declare → { device_info, events[], methods[] }
+- Events (device → server):
+  - meo/BACDIEIFIEE/event/{eventName} → { ...payload }
+- Feature invoke (server → device):
+  - meo/BACDIEIFIEE/feature/{featureName}/invoke → { params: { k: v, ... } }
+- Feature response (device → server):
+  - meo/BACDIEIFIEE/event/feature_response → { feature_name, device_id, success, message? }
+
+No request_id is used in this SDK.
+
+---
+
+## Logging
+
+Enable structured logs and selective DEBUG:
+
+```cpp
+meo.setLogger([](const char* level, const char* msg){
+  Serial.printf("[%s] %s\n", level, msg);
+});
+meo.setDebugTags("DEVICE,MQTT,PROV"); // only these tags emit DEBUG
+```
+
+- Tags the library uses:
+  - DEVICE: device lifecycle, feature registry, declare
+  - MQTT: broker config, connect, publish/subscribe
+  - PROV: BLE provisioning status/changes
+
+INFO/WARN/ERROR are always logged when a logger is set; DEBUG respects tag filtering.
+
+---
+
+## API Overview
+
+Types (lib/meo/Meo3_Type.h):
+- MeoEventPayload = std::map<String, String>
+- struct MeoFeatureCall { String deviceId; String featureName; MeoEventPayload params; }
+- using MeoFeatureCallback = std::function<void(const MeoFeatureCall&)>;
+
+MeoDevice (lib/meo/Meo3_Device.h):
+- Logging
+  - setLogger(MeoLogFunction)
+  - setDebugTags(const char* csvTags) // e.g., "DEVICE,MQTT"
+- Identity and connection
+  - setDeviceInfo(const char* model, const char* manufacturer)
+  - setGateway(const char* host, uint16_t port = 1883)
+  - beginWifi(const char* ssid, const char* pass) // optional if provisioning via BLE
+- Features
+  - addFeatureEvent(const char* name)
+  - addFeatureMethod(const char* name, MeoFeatureCallback cb)
+- Lifecycle
+  - start()
+  - loop()
+- Publish/Respond
+  - publishEvent(const char* eventName, const char* const* keys, const char* const* values, uint8_t count)
+  - publishEvent(const char* eventName, const MeoEventPayload& payload)
+  - sendFeatureResponse(const char* featureName, bool ok, const char* message)
+  - sendFeatureResponse(const MeoFeatureCall& call, bool ok, const char* message)
+- Status
+  - bool isMqttConnected()
+  - bool hasCredentials()
+
+Behavioral notes:
+- When Wi‑Fi is connected during start(), BLE advertising is stopped automatically.
+- loop() keeps MQTT alive and tries lazy reconnect if Wi‑Fi and credentials are present.
+
+---
+
+## Troubleshooting
+
+- Broker shows “Bad socket read/write … Malformed UTF‑8”
+  - Ensure device_id and topics contain only printable ASCII; avoid CR/LF or hidden characters.
+  - Re‑write device_id via provisioning without trailing spaces.
+- mDNS name doesn’t resolve (meo-open-service or meo-open-service.local)
+  - Use the gateway’s IP address with setGateway("192.168.x.x", 1883).
+- MQTT doesn’t reconnect after power loss
+  - Confirm Wi‑Fi is connected and credentials (device_id, tx_key) exist.
+  - Increase Serial logging with setDebugTags("DEVICE,MQTT").
+- No feature callback fires
+  - Verify method name in addFeatureMethod matches server invoke topic feature.
+  - Confirm subscribe success in logs (Subscribed to meo/{id}/feature/+/invoke).
+
+---
+
+## Example: Two features, one event
+
+```cpp
+#include <Arduino.h>
+#include "Meo3_Device.h"
+
+MeoDevice meo;
+
+void onTurnOn(const MeoFeatureCall& call) {
+  meo.sendFeatureResponse(call, true, "turn_on OK");
+}
+void onTurnOff(const MeoFeatureCall& call) {
+  meo.sendFeatureResponse(call, true, "turn_off OK");
+}
+
+void setup() {
+  Serial.begin(115200);
+  meo.setLogger([](const char* level, const char* msg){ Serial.printf("[%s] %s\n", level, msg); });
+  meo.setDebugTags("DEVICE,MQTT");
+
+  meo.setDeviceInfo("MyModel", "MyCompany");
+  meo.setGateway("192.168.1.10", 1883);
+  // meo.beginWifi("SSID", "PASS"); // or provision via BLE
+
+  meo.addFeatureMethod("turn_on",  onTurnOn);
+  meo.addFeatureMethod("turn_off", onTurnOff);
+  meo.addFeatureEvent("sensor_update");
+
+  meo.start();
+}
+
+void loop() {
+  meo.loop();
+}
+```
+
+---
+
+## License
+
+MIT (see LICENSE if provided in the repository)
+
+---
