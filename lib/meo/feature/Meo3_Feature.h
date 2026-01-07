@@ -22,14 +22,13 @@ public:
         const char* const* keys,   // param keys
         const char* const* values, // param values
         uint8_t count,
-        const char* requestId,
         void* ctx
     );
 
     MeoFeature();
 
     // Wire base transport and device identity
-    void attach(MeoMqtt* transport, const char* deviceId);
+    void attach(MeoMqttClient* transport, const char* deviceId);
 
     // Subscribe to invokes and set callback
     bool beginFeatureSubscribe(FeatureCallback cb, void* ctx);
@@ -42,7 +41,6 @@ public:
 
     // Send a feature response
     bool sendFeatureResponse(const char* featureName,
-                             const char* requestId,
                              bool success,
                              const char* message);
 
@@ -53,7 +51,7 @@ public:
     static void onRawMessage(const char* topic, const uint8_t* payload, unsigned int length, void* ctx);
 
 private:
-    MeoMqtt*     _mqtt = nullptr;
+    MeoMqttClient*     _mqtt = nullptr;
     const char*  _deviceId = nullptr;
 
     // Reusable JSON buffer

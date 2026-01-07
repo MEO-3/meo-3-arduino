@@ -2,7 +2,7 @@
 
 MeoFeature::MeoFeature() {}
 
-void MeoFeature::attach(MeoMqtt* transport, const char* deviceId) {
+void MeoFeature::attach(MeoMqttClient* transport, const char* deviceId) {
     _mqtt = transport;
     _deviceId = deviceId;
     if (_mqtt) {
@@ -40,7 +40,6 @@ bool MeoFeature::publishEvent(const char* eventName,
 }
 
 bool MeoFeature::sendFeatureResponse(const char* featureName,
-                                     const char* requestId,
                                      bool success,
                                      const char* message) {
     if (!_mqtt || !_mqtt->isConnected() || !_deviceId) return false;
@@ -49,7 +48,6 @@ bool MeoFeature::sendFeatureResponse(const char* featureName,
 
     StaticJsonDocument<BUF_SIZE> doc;
     doc["feature_name"] = featureName;
-    if (requestId) doc["request_id"] = requestId;
     doc["device_id"] = _deviceId;
     doc["success"]    = success;
     if (message) doc["message"] = message;
@@ -114,5 +112,5 @@ void MeoFeature::_dispatchFeatureInvoke(const char* topic, const uint8_t* payloa
         requestId = doc["request_id"].as<const char*>();
     }
 
-    _cb(featureName, _deviceId, keys, values, count, requestId, _cbCtx);
+    _cb(featureName, _deviceId, keys, values, count, _cbCtx);
 }

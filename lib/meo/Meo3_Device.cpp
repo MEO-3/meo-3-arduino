@@ -1,175 +1,199 @@
 #include "Meo3_Device.h"
-#include <WiFi.h>
+#include <ArduinoJson.h>
 
-MeoDevice::MeoDevice()
-    : _registrationPort(8901),
-      _mqttPort(1883),
-      _logger(nullptr),
-      _wifiReady(false),
-      _registered(false),
-      _mqttReady(false) {}
-
-void MeoDevice::beginWifi(const char* ssid, const char* password) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-
-    _log("INFO", "Connecting to WiFi...");
-    unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - start) < 20000) {
-        delay(500);
-        _log("INFO", ".");
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        _wifiReady = true;
-        String msg = "WiFi connected, IP: " + WiFi.localIP().toString();
-        _log("INFO", msg.c_str());
-    } else {
-        _wifiReady = false;
-        _log("ERROR", "Failed to connect to WiFi");
-    }
-
-    _storage.begin();
-}
-
-void MeoDevice::setGateway(const char* host, uint16_t registrationPort, uint16_t mqttPort) {
-    _gatewayHost = host;
-    _registrationPort = registrationPort;
-    _mqttPort = mqttPort;
-
-    _registration.setGateway(host, registrationPort);
-    _mqtt.configure(host, mqttPort, _deviceId, _transmitKey, &_featureRegistry);
-}
-
-void MeoDevice::begin(const char* host, uint16_t mqttPort) {
-    setGateway(host, 8901, mqttPort);
-}
+MeoDevice::MeoDevice() {}
 
 void MeoDevice::setDeviceInfo(const char* label,
                               const char* model,
-                              const char* manufacturer,
-                              MeoConnectionType connectionType) {
-    _deviceInfo.label = label;
-    _deviceInfo.model = model;
-    _deviceInfo.manufacturer = manufacturer;
-    _deviceInfo.connectionType = connectionType;
+                              const char* manufacturer) {
+    _label = label;
+    _model = model;
+    _manufacturer = manufacturer;
 }
 
-void MeoDevice::addFeatureEvent(const char* eventName) {
-    _featureRegistry.eventNames.push_back(String(eventName));
+void MeoDevice::beginWifi(const char* ssid, const char* pass) {
+    _wifiSsid = ssid;
+    _wifiPass = pass;
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(_wifiSsid, _wifiPass);
+    uint32_t start = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - start) < 15000) {
+        delay(100);
+    }
+    _wifiReady = (WiFi.status() == WL_CONNECTED);
 }
 
-void MeoDevice::addFeatureMethod(const char* methodName, MeoFeatureCallback callback) {
-    _featureRegistry.methodHandlers[String(methodName)] = callback;
+void MeoDevice::setGateway(const char* host, uint16_t mqttPort) {
+    _gatewayHost = host;
+    _mqttPort = mqttPort;
 }
 
-bool MeoDevice::start() {
-    if (!_wifiReady) {
-        _log("ERROR", "WiFi not ready; call beginWifi() first");
-        return false;
-    }
-
-    // Try to load credentials from storage
-    if (_loadCredentials(_deviceId, _transmitKey)) {
-        _log("INFO", "Loaded existing credentials");
-        _registered = true;
-    } else {
-        _log("INFO", "No stored credentials, registering with gateway...");
-        if (!_registration.registerIfNeeded(_deviceInfo, _featureRegistry, _deviceId, _transmitKey)) {
-            _log("ERROR", "Registration failed");
-            return false;
-        }
-        _saveCredentials(_deviceId, _transmitKey);
-        _registered = true;
-        _log("INFO", "Registered and saved credentials");
-    }
-
-    // Configure MQTT with final deviceId/transmitKey
-    _mqtt.setLogger(_logger);
-    _mqtt.configure(_gatewayHost.c_str(), _mqttPort, _deviceId, _transmitKey, &_featureRegistry);
-
-    if (!_mqtt.connect()) {
-        _log("ERROR", "Failed to connect to MQTT");
-        _mqttReady = false;
-        return false;
-    }
-
-    _mqttReady = true;
-    _log("INFO", "MQTT connected");
+bool MeoDevice::addFeatureEvent(const char* name) {
+    if (!name || !*name || _eventCount >= MEO_MAX_FEATURE_EVENTS) return false;
+    _eventNames[_eventCount++] = name;
     return true;
 }
 
-void MeoDevice::loop() {
-    if (!_wifiReady) {
-        return;
-    }
+bool MeoDevice::addFeatureMethod(const char* name, MeoFeatureCallback cb, void* cbCtx) {
+    if (!name || !*name || !cb || _methodCount >= MEO_MAX_FEATURE_METHODS) return false;
+    _methodNames[_methodCount] = name;
+    _methodHandlers[_methodCount] = cb;
+    _methodCtx[_methodCount] = cbCtx;
+    _methodCount++;
+    return true;
+}
 
-    if (!_registered) {
-        // Try registration lazily if start() was not called (or failed)
-        start();
-    }
+bool MeoDevice::start() {
+    // Init storage
+    _storage.begin();
 
-    if (_registered && !_mqttReady) {
-        // Try reconnect MQTT
-        if (_mqtt.connect()) {
-            _mqttReady = true;
-            _log("INFO", "MQTT reconnected");
+    // Init BLE and provisioning (model/manufacturer shown as RO fields)
+    _ble.begin(_label ? _label : "MEO Device");
+    _prov.begin(&_ble, &_storage, _model ? _model : "", _manufacturer ? _manufacturer : "");
+    _prov.setAutoRebootOnProvision(true, 500);
+    _prov.startAdvertising();
+
+    // Load credentials provisioned via BLE/app
+    _storage.loadString("device_id", _deviceId);
+    _storage.loadString("transmit_key", _transmitKey);
+
+    // If WiFi not provided upfront, try loading from storage (BLE wrote them)
+    if (!_wifiSsid || !_wifiPass) {
+        String ssid, pass;
+        if (_storage.loadString("wifi_ssid", ssid) && _storage.loadString("wifi_pass", pass)) {
+            _wifiSsid = ssid.c_str();
+            _wifiPass = pass.c_str();
+            // Connect WiFi
+            WiFi.mode(WIFI_STA);
+            WiFi.begin(ssid.c_str(), pass.c_str());
+            uint32_t startMs = millis();
+            while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < 15000) {
+                delay(100);
+            }
+            _wifiReady = (WiFi.status() == WL_CONNECTED);
         }
     }
 
-    if (_mqttReady) {
-        _mqtt.loop();
-    }
-}
+    // Update BLE status
+    _prov.setRuntimeStatus(_wifiReady ? "connected" : "disconnected",
+                           "unknown");
 
-bool MeoDevice::isRegistered() const {
-    return _registered;
-}
-
-bool MeoDevice::isMqttConnected() const {
-    return _mqttReady && _mqtt.isConnected();
-}
-
-bool MeoDevice::publishEvent(const char* eventName, const MeoEventPayload& payload) {
-    if (!_mqttReady) {
-        _log("WARN", "MQTT not ready, cannot publish event");
+    // Only proceed to MQTT if we have both WiFi and credentials
+    if (!hasCredentials() || !_wifiReady) {
+        // Stay in provisioning/awaiting connectivity
         return false;
     }
-    return _mqtt.publishEvent(eventName, payload);
+
+    // Connect MQTT and declare
+    return _connectMqttAndDeclare();
 }
 
-bool MeoDevice::sendFeatureResponse(const MeoFeatureCall& call, bool success, const char* message) {
-    if (!_mqttReady) {
-        _log("WARN", "MQTT not ready, cannot send feature response");
+void MeoDevice::loop() {
+    _prov.loop();
+    _mqtt.loop();
+
+    // Update BLE status when connectivity changes
+    static wl_status_t last = WL_IDLE_STATUS;
+    wl_status_t now = WiFi.status();
+    if (now != last || true) {
+        _prov.setRuntimeStatus(now == WL_CONNECTED ? "connected" : "disconnected",
+                               _mqtt.isConnected() ? "connected" : "disconnected");
+        last = now;
+    }
+
+    // Lazy connect when WiFi and creds become ready
+    if (!_mqtt.isConnected() && _wifiReady && hasCredentials()) {
+        _connectMqttAndDeclare();
+    }
+}
+
+bool MeoDevice::publishEvent(const char* eventName,
+                             const char* const* keys,
+                             const char* const* values,
+                             uint8_t count) {
+    return _feature.publishEvent(eventName, keys, values, count);
+}
+
+bool MeoDevice::sendFeatureResponse(const char* featureName,
+                                    bool success,
+                                    const char* message) {
+    return _feature.sendFeatureResponse(featureName, success, message);
+}
+
+void MeoDevice::_updateBleStatus() {
+    _prov.setRuntimeStatus(_wifiReady ? "connected" : "disconnected",
+                           _mqtt.isConnected() ? "connected" : "disconnected");
+}
+
+bool MeoDevice::_connectMqttAndDeclare() {
+    // Configure MQTT transport
+    _mqtt.configure(_gatewayHost, _mqttPort);
+    _mqtt.setCredentials(_deviceId.c_str(), _transmitKey.c_str());
+
+    // LWT: status offline
+    String willTopic = String("meo/") + _deviceId + "/status";
+    _mqtt.setWill(willTopic.c_str(), "offline", 0, true);
+
+    if (!_mqtt.connect()) {
         return false;
     }
-    return _mqtt.sendFeatureResponse(call, success, message);
+
+    // Attach feature layer and subscribe
+    _feature.attach(&_mqtt, _deviceId.c_str());
+    _feature.beginFeatureSubscribe(
+        [](const char* featureName, const char* deviceId,
+           const char* const* keys, const char* const* values, uint8_t count, void* ctx) {
+            reinterpret_cast<MeoDevice*>(ctx)->_onFeatureInvoke(featureName, deviceId, keys, values, count, ctx);
+        },
+        this
+    );
+
+    // Publish status and declare
+    _feature.publishStatus("online");
+    _publishDeclare();
+
+    _updateBleStatus();
+    return true;
 }
 
-void MeoDevice::setLogger(MeoLogFunction logger) {
-    _logger = logger;
-    _registration.setLogger(logger);
-    _mqtt.setLogger(logger);
-}
-
-void MeoDevice::_log(const char* level, const char* msg) {
-    if (_logger) {
-        _logger(level, msg);
-    } else {
-        // Fallback to Serial for debugging
-        Serial.print("[");
-        Serial.print(level);
-        Serial.print("] ");
-        Serial.println(msg);
+void MeoDevice::_onFeatureInvoke(const char* featureName,
+                                 const char* deviceId,
+                                 const char* const* keys,
+                                 const char* const* values,
+                                 uint8_t count,
+                                 void* ctx) {
+    for (uint8_t i = 0; i < _methodCount; ++i) {
+        if (strcmp(featureName, _methodNames[i]) == 0) {
+            _methodHandlers[i](featureName, _deviceId.c_str(), keys, values, count, _methodCtx[i]);
+            return;
+        }
     }
+    // Optional: respond with failure if no handler
+    sendFeatureResponse(featureName, false, "No handler registered");
 }
 
-bool MeoDevice::_loadCredentials(String& deviceIdOut, String& transmitKeyOut) {
-    bool deviceIdOk = _storage.loadString("device_id", deviceIdOut);
-    bool transmitKeyOk = _storage.loadString("tx_key", transmitKeyOut);
-}
+bool MeoDevice::_publishDeclare() {
+    // meo/{device_id}/declare
+    String topic = String("meo/") + _deviceId + "/declare";
+    StaticJsonDocument<1024> doc;
+    JsonObject info = doc.createNestedObject("device_info");
+    info["label"]        = _label ? _label : "";
+    info["model"]        = _model ? _model : "";
+    info["manufacturer"] = _manufacturer ? _manufacturer : "";
+    info["connection"]   = "LAN";
 
-bool MeoDevice::_saveCredentials(const String& deviceId, const String& transmitKey) {
-    bool deviceIdOk = _storage.saveString("device_id", deviceId);
-    bool transmitKeyOk = _storage.saveString("tx_key", transmitKey);
+    JsonArray events = doc.createNestedArray("events");
+    for (uint8_t i = 0; i < _eventCount; ++i) {
+        events.add(_eventNames[i]);
+    }
+
+    JsonArray methods = doc.createNestedArray("methods");
+    for (uint8_t i = 0; i < _methodCount; ++i) {
+        methods.add(_methodNames[i]);
+    }
+
+    char buf[1024];
+    size_t len = serializeJson(doc, buf, sizeof(buf));
+    if (len == 0) return false;
+    return _mqtt.publish(topic.c_str(), (const uint8_t*)buf, len, false);
 }

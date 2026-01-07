@@ -1,70 +1,110 @@
 #pragma once
 
 #include <Arduino.h>
-#include "define/Meo3_Type.h"
-#include "registration/Meo3_Registration.h"
-#include "mqtt/Meo3_Mqtt.h"
+#include <WiFi.h>
 #include "storage/Meo3_Storage.h"
+#include "ble/Meo3_Ble.h"
+#include "provision/Meo3_BleProvision.h"
+#include "mqtt/Meo3_Mqtt.h"
+#include "feature/Meo3_Feature.h"
+
+// Lightweight fixed-capacity registry
+#ifndef MEO_MAX_FEATURE_EVENTS
+#define MEO_MAX_FEATURE_EVENTS 8
+#endif
+#ifndef MEO_MAX_FEATURE_METHODS
+#define MEO_MAX_FEATURE_METHODS 8
+#endif
+
+typedef void (*MeoFeatureCallback)(
+    const char* featureName,
+    const char* deviceId,
+    const char* const* keys,
+    const char* const* values,
+    uint8_t count,
+    void* ctx
+);
 
 class MeoDevice {
 public:
     MeoDevice();
 
-    // --- Basic configuration ---
-    void beginWifi(const char* ssid, const char* password);
-    void setGateway(const char* host, uint16_t registrationPort = 8901, uint16_t mqttPort = 1883);
-
-    // Convenience: set gateway + start
-    void begin(const char* host, uint16_t mqttPort = 1883);
-
+    // Device info for declare and BLE RO fields
     void setDeviceInfo(const char* label,
                        const char* model,
-                       const char* manufacturer,
-                       MeoConnectionType connectionType = MeoConnectionType::LAN);
+                       const char* manufacturer);
 
-    // --- Feature and event model configuration ---
-    void addFeatureEvent(const char* eventName);
-    void addFeatureMethod(const char* methodName, MeoFeatureCallback callback);
+    // Optional: provide WiFi upfront; otherwise BLE provisioning can set it
+    void beginWifi(const char* ssid, const char* pass);
 
-    // --- Lifecycle ---
-    // Trigger registration (if no device_id/transmit_key) and then connect MQTT
-    bool start();
-    void loop();   // must be called often from Arduino loop()
+    // MQTT broker (gateway)
+    void setGateway(const char* host, uint16_t mqttPort = 1883);
 
-    bool isRegistered() const;
-    bool isMqttConnected() const;
+    // Features
+    bool addFeatureEvent(const char* name);
+    bool addFeatureMethod(const char* name, MeoFeatureCallback cb, void* cbCtx = nullptr);
 
-    // --- Event publishing ---
-    bool publishEvent(const char* eventName, const MeoEventPayload& payload);
+    // Lifecycle
+    bool start();    // Load creds; BLE provisioning if needed; MQTT connect; declare
+    void loop();     // BLE status, MQTT loop, lazy reconnect
 
-    // --- Feature responses ---
-    bool sendFeatureResponse(const MeoFeatureCall& call, bool success, const char* message = nullptr);
+    // Publish helpers
+    bool publishEvent(const char* eventName,
+                      const char* const* keys,
+                      const char* const* values,
+                      uint8_t count);
 
-    // --- Debug / logging hooks (optional) ---
-    void setLogger(MeoLogFunction logger);
+    bool sendFeatureResponse(const char* featureName,
+                             bool success,
+                             const char* message);
+
+    // Status
+    bool hasCredentials() const { return _deviceId.length() && _transmitKey.length(); }
+    bool isMqttConnected() { return _mqtt.isConnected(); }
 
 private:
-    // Internal state and helper objects
-    String       _gatewayHost;
-    uint16_t     _registrationPort;
-    uint16_t     _mqttPort;
+    // Config
+    const char* _label = nullptr;
+    const char* _model = nullptr;
+    const char* _manufacturer = nullptr;
 
-    String       _deviceId;
-    String       _transmitKey;
+    const char* _wifiSsid = nullptr;
+    const char* _wifiPass = nullptr;
+    const char* _gatewayHost = "meo-open-service.local";
+    uint16_t    _mqttPort = 1883;
 
-    MeoDeviceInfo          _deviceInfo;
-    MeoFeatureRegistry     _featureRegistry;
-    MeoRegistrationClient  _registration;
-    MeoMqttClient          _mqtt;
-    MeoStorage             _storage;
-    MeoLogFunction         _logger;
+    // Identity (from BLE/app)
+    String  _deviceId;
+    String  _transmitKey;
 
-    bool _wifiReady;
-    bool _registered;
-    bool _mqttReady;
+    // Registries
+    const char* _eventNames[MEO_MAX_FEATURE_EVENTS];
+    uint8_t     _eventCount = 0;
 
-    void _log(const char* level, const char* msg);
+    const char* _methodNames[MEO_MAX_FEATURE_METHODS];
+    MeoFeatureCallback _methodHandlers[MEO_MAX_FEATURE_METHODS];
+    void*       _methodCtx[MEO_MAX_FEATURE_METHODS];
+    uint8_t     _methodCount = 0;
 
-    bool _loadCredentials(String& deviceIdOut, String& transmitKeyOut);
-    bool _saveCredentials(const String& deviceId, const String& transmitKey);
+    // Modules
+    MeoStorage      _storage;
+    MeoBle          _ble;
+    MeoBleProvision _prov;
+    MeoMqttClient         _mqtt;
+    MeoFeature      _feature;
+
+    // State
+    bool _wifiReady = false;
+
+    // Internals
+    void _updateBleStatus();
+    void _onFeatureInvoke(const char* featureName,
+                          const char* deviceId,
+                          const char* const* keys,
+                          const char* const* values,
+                          uint8_t count,
+                          void* ctx);
+
+    bool _connectMqttAndDeclare();
+    bool _publishDeclare();
 };
