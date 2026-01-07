@@ -269,6 +269,6 @@ void loop() {
 
 ## License
 
-MIT (see LICENSE if provided in the repository)
+aGPLv3 (see LICENSE if provided in the repository)
 
 ---
