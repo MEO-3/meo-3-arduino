@@ -13,13 +13,12 @@ enum class MeoConnectionType : int {
 
 // Device info – maps conceptually to MDevice fields
 struct MeoDeviceInfo {
-    String label;
     String model;
     String manufacturer;
     MeoConnectionType connectionType;
 
     MeoDeviceInfo()
-        : label(""), model(""), manufacturer(""), connectionType(MeoConnectionType::LAN) {}
+        : model(""), manufacturer(""), connectionType(MeoConnectionType::LAN) {}
 };
 
 // Simple key-value payload type for events/feature params

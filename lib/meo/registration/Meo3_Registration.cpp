@@ -61,7 +61,6 @@ bool MeoRegistrationClient::_sendBroadcast(const MeoDeviceInfo& devInfo,
 
     StaticJsonDocument<1024> doc;
     doc["magic"]        = MEO_REG_DISCOVERY_MAGIC;  // so gateway can filter
-    doc["label"]        = devInfo.label;
     doc["model"]        = devInfo.model;
     doc["manufacturer"] = devInfo.manufacturer;
     doc["connectionType"]= static_cast<int>(devInfo.connectionType);
