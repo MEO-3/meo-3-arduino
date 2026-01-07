@@ -1,40 +1,77 @@
 #pragma once
 
-#include "core/Meo3_Type.h"
+#include <Arduino.h>
+#include <WiFiClient.h>
+#include <PubSubClient.h>
 
+/**
+ * MeoMqtt: minimal MQTT transport wrapper around PubSubClient.
+ * - Keeps RAM/flash low
+ * - Clean separation from device/feature logic
+ * - Delivers raw messages via a lightweight function pointer callback
+ *
+ * Note: Internally uses a static callback thunk due to PubSubClient API,
+ * so only one active MeoMqtt instance should be used at a time.
+ */
 class MeoMqttClient {
 public:
+    typedef void (*OnMessageFn)(const char* topic, const uint8_t* payload, unsigned int length, void* ctx);
+
     MeoMqttClient();
+    // Configure broker host and port
+    void configure(const char* host, uint16_t port = 1883);
 
-    void setLogger(MeoLogFunction logger);
+    // Set device credentials (used as username/password)
+    void setCredentials(const char* deviceId, const char* transmitKey);
 
-    void configure(const char* host,
-                   uint16_t port,
-                   const String& deviceId,
-                   const String& transmitKey,
-                   MeoFeatureRegistry* featureRegistry);
+    // Optional: tune internal buffers/timeouts
+    void setBufferSize(uint16_t bytes);     // default 1024
+    void setKeepAlive(uint16_t seconds);    // default 15
+    void setSocketTimeout(uint16_t seconds);// default 15
 
+    // Optional Last Will
+    void setWill(const char* topic, const char* payload, uint8_t qos = 0, bool retain = true);
+
+    // Connect to broker; returns true on success
     bool connect();
+
+    // Must be called frequently to process incoming/outgoing MQTT traffic
     void loop();
-    bool isConnected() const;
 
-    bool publishEvent(const char* eventName, const MeoEventPayload& payload);
+    bool isConnected();
 
-    bool sendFeatureResponse(const MeoFeatureCall& call, bool success, const char* message);
+    // Raw publish/subscribe
+    bool publish(const char* topic, const uint8_t* payload, size_t len, bool retained = false);
+    bool publish(const char* topic, const char* payload, bool retained = false);
+    bool subscribe(const char* topic, uint8_t qos = 0);
+
+    // Set message handler (function pointer)
+    void setMessageHandler(OnMessageFn fn, void* ctx);
+
+    // Accessors
+    const char* host() const { return _host; }
+    uint16_t    port() const { return _port; }
+    const char* deviceId() const { return _deviceId; }
 
 private:
-    String           _host;
-    uint16_t         _port;
-    String           _deviceId;
-    String           _transmitKey;
-    MeoFeatureRegistry* _features;
-    MeoLogFunction   _logger;
+    const char*  _host = nullptr;
+    uint16_t     _port = 1883;
+    const char*  _deviceId = nullptr;
+    const char*  _txKey = nullptr;
 
-    // underlying MQTT client object (to be defined in .cpp)
-    // e.g., WiFiClient _wifiClient; PubSubClient _mqtt;
+    const char*  _willTopic = nullptr;
+    const char*  _willPayload = nullptr;
+    uint8_t      _willQos = 0;
+    bool         _willRetain = true;
 
-    void _onMqttMessage(char* topic, uint8_t* payload, unsigned int length);
-    void _subscribeFeatureTopics();
+    WiFiClient   _wifiClient;
+    PubSubClient _mqtt;
 
-    void _dispatchFeatureCall(const MeoFeatureCall& call);
+    OnMessageFn  _onMessage = nullptr;
+    void*        _onMessageCtx = nullptr;
+
+    // PubSubClient requires a free function for callback; use a static thunk
+    static MeoMqttClient* _self;
+    static void _pubsubThunk(char* topic, uint8_t* payload, unsigned int length);
+    void _invokeMessageHandler(char* topic, uint8_t* payload, unsigned int length);
 };

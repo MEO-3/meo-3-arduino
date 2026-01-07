@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/Meo3_Type.h"
+#include "define/Meo3_Type.h"
 
 class MeoRegistrationClient {
 public:
