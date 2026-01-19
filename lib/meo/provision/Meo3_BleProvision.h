@@ -14,7 +14,7 @@
 #define CH_UUID_WIFI_PASS           "9f27f7f2-0000-1000-8000-00805f9b34fb" // WO - WiFi Password
 #define CH_UUID_WIFI_LIST           "9f27f7f3-0000-1000-8000-00805f9b34fb" // RO - WiFi SSID List (read-only)
 
-#define CH_UUID_USER_ID             "9f27f7f4-0000-1000-8000-00805f9b34fb" // RW - Device Identifier
+#define CH_UUID_USER_ID             "9f27f7f4-0000-1000-8000-00805f9b34fb" // RW - User ID
 
 // Device info characteristics (use cloud provision)
 #define CH_UUID_PRODUCT_ID          "9f27f7f5-0000-1000-8000-00805f9b34fb" // RO - Product ID / Manufacturer
