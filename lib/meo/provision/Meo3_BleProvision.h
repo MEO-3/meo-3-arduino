@@ -12,15 +12,23 @@
 // Characteristic UUIDs for provisioning
 #define CH_UUID_WIFI_SSID           "9f27f7f1-0000-1000-8000-00805f9b34fb" // RW - WiFi SSID
 #define CH_UUID_WIFI_PASS           "9f27f7f2-0000-1000-8000-00805f9b34fb" // WO - WiFi Password
+#define CH_UUID_WIFI_LIST           "9f27f7f3-0000-1000-8000-00805f9b34fb" // RO - WiFi SSID List (read-only)
 
-// Device info characteristics
-#define CH_UUID_DEV_MODEL           "9f27f7f3-0000-1000-8000-00805f9b34fb" // RO - Device Model
-#define CH_UUID_DEV_MANUF           "9f27f7f4-0000-1000-8000-00805f9b34fb" // RO - Device Manufacturer
-#define CH_UUID_DEV_ID              "9f27f7f6-0000-1000-8000-00805f9b34fb" // RW - Device ID
-#define CH_UUID_TX_KEY              "9f27f7f7-0000-1000-8000-00805f9b34fb" // WO - Transmit Key (write-only)
+#define CH_UUID_USER_ID             "9f27f7f4-0000-1000-8000-00805f9b34fb" // RW - Device Identifier
 
-// Provisioning progress / status (small JSON string)
-#define CH_UUID_PROV_PROG           "9f27f7f5-0000-1000-8000-00805f9b34fb" // RO + NOTIFY
+// Device info characteristics (use cloud provision)
+#define CH_UUID_PRODUCT_ID          "9f27f7f5-0000-1000-8000-00805f9b34fb" // RO - Product ID / Manufacturer
+#define CH_UUID_BUILD_INFO          "9f27f7f6-0000-1000-8000-00805f9b34fb" // RO - Build Number / Firmware Version
+#define CH_UUID_MAC_ADDR            "9f27f7f7-0000-1000-8000-00805f9b34fb" // RO - MAC Address
+
+// Device info characteristics (use edge provision)
+// NOTE: use distinct UUIDs (previously `DEV_MODEL` duplicated `DEV_ID`)
+#define CH_UUID_DEV_MODEL           "9f27f7f8-0000-1000-8000-00805f9b34fb" // RO - Device Model
+#define CH_UUID_DEV_MANUF           "9f27f7f9-0000-1000-8000-00805f9b34fb" // RO - Device Manufacturer
+
+// Additional provisioning characteristics used by the implementation
+#define CH_UUID_TX_KEY              "9f27f7fa-0000-1000-8000-00805f9b34fb" // WO - Transmit Key (MQTT password)
+
 
 // All characteristics from f8 to fe are reserved for future use
 
@@ -71,9 +79,8 @@ private:
     NimBLECharacteristic*  _chPass   = nullptr;
     NimBLECharacteristic*  _chModel  = nullptr;
     NimBLECharacteristic*  _chManuf  = nullptr;
-    NimBLECharacteristic*  _chDevId  = nullptr;
+    NimBLECharacteristic*  _chUserId  = nullptr;
     NimBLECharacteristic*  _chTxKey  = nullptr;
-    NimBLECharacteristic*  _chProg   = nullptr;
 
     const char*         _wifiStatus = "unknown";
     const char*         _mqttStatus = "unknown";

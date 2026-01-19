@@ -35,17 +35,16 @@ bool MeoBleProvision::_createServiceAndCharacteristics() {
     _chPass  = _ble->createCharacteristic(_svc, CH_UUID_WIFI_PASS, NIMBLE_PROPERTY::WRITE);
     _chModel = _ble->createCharacteristic(_svc, CH_UUID_DEV_MODEL, NIMBLE_PROPERTY::READ);
     _chManuf = _ble->createCharacteristic(_svc, CH_UUID_DEV_MANUF, NIMBLE_PROPERTY::READ);
-    _chDevId = _ble->createCharacteristic(_svc, CH_UUID_DEV_ID,   NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+    _chUserId = _ble->createCharacteristic(_svc, CH_UUID_USER_ID,   NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
     _chTxKey = _ble->createCharacteristic(_svc, CH_UUID_TX_KEY,   NIMBLE_PROPERTY::WRITE);
-    _chProg  = _ble->createCharacteristic(_svc, CH_UUID_PROV_PROG, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
-    return _chSsid && _chPass && _chModel && _chManuf && _chDevId && _chTxKey && _chProg;
+    return _chSsid && _chPass && _chModel && _chManuf && _chUserId && _chTxKey;
 }
 
 void MeoBleProvision::_bindWriteHandlers() {
     _ble->setCharWriteHandler(_chSsid,  &MeoBleProvision::_onWriteStatic, this);
     _ble->setCharWriteHandler(_chPass,  &MeoBleProvision::_onWriteStatic, this);
-    _ble->setCharWriteHandler(_chDevId, &MeoBleProvision::_onWriteStatic, this);
+    _ble->setCharWriteHandler(_chUserId, &MeoBleProvision::_onWriteStatic, this);
     _ble->setCharWriteHandler(_chTxKey, &MeoBleProvision::_onWriteStatic, this);
 }
 
@@ -80,7 +79,7 @@ void MeoBleProvision::setAutoRebootOnProvision(bool enable, uint32_t delayMs) {
 void MeoBleProvision::_loadInitialValues() {
     String tmp;
     if (_storage->loadString("wifi_ssid", tmp))    _chSsid->setValue(tmp.c_str());
-    if (_storage->loadString("device_id", tmp))    _chDevId->setValue(tmp.c_str());
+    if (_storage->loadString("user_id", tmp))    _chUserId->setValue(tmp.c_str());
     if (_devModel && _devModel[0])                 _chModel->setValue(_devModel);
     if (_devManuf && _devManuf[0])                 _chManuf->setValue(_devManuf);
 }
@@ -118,9 +117,9 @@ void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
         _scheduleRebootIfReady();
         return;
     }
-    if (uuid.equals(NimBLEUUID(CH_UUID_DEV_ID))) {
-        _storage->saveString("device_id", s);
-        _logger("INFO", "Device ID updated");
+    if (uuid.equals(NimBLEUUID(CH_UUID_USER_ID))) {
+        _storage->saveString("user_id", s);
+        _logger("INFO", "User ID updated");
         return;
     }
     if (uuid.equals(NimBLEUUID(CH_UUID_TX_KEY))) {
@@ -134,10 +133,7 @@ void MeoBleProvision::_updateStatus() {
     snprintf(_statusBuf, sizeof(_statusBuf),
              "WiFi: %s, MQTT: %s",
              _wifiStatus, _mqttStatus);
-    if (_chProg) {
-        _chProg->setValue(_statusBuf);
-        _chProg->notify();
-    }
+    // Progress characteristic removed; only log DEBUG when enabled.
     if (_logger && _debugTagEnabled("PROV")) {
         _logger("DEBUG", _statusBuf);
     }
