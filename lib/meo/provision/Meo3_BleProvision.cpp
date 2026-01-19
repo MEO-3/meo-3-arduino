@@ -109,8 +109,8 @@ void MeoBleProvision::_loadInitialValues() {
         _chMacAddr->setValue(macbuf);
     }
 
-    if (_devModel && _devModel[0])                 _chModel->setValue(_devModel);
-    if (_devManuf && _devManuf[0])                 _chManuf->setValue(_devManuf);
+    if (_devModel && _devModel[0])  _chModel->setValue(_devModel);
+    if (_devManuf && _devManuf[0])  _chManuf->setValue(_devManuf);
 }
 
 void MeoBleProvision::_scheduleRebootIfReady() {
