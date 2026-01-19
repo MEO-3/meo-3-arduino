@@ -70,7 +70,7 @@ bool MeoMqttClient::connect() {
     bool ok = false;
     if (_willTopic) {
         ok = _mqtt.connect(clientId.c_str(),
-                           _deviceId, _txKey,
+                           "edgemqtt", _txKey,
                            _willTopic, _willQos, _willRetain, _willPayload);
     } else {
         ok = _mqtt.connect(clientId.c_str(), _deviceId, _txKey);

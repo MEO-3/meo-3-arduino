@@ -1,5 +1,6 @@
 #include "Meo3_BleProvision.h"
 #include <stdarg.h>
+#include <esp_system.h>
 
 void MeoBleProvision::setLogger(MeoLogFunction logger) {
     _logger = logger;
@@ -26,19 +27,28 @@ bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage,
     return true;
 }
 
+void MeoBleProvision::setCloudCompatibleInfo(const char* productId, const char* buildInfo) {
+    _devProductId = productId;
+    _buildInfo = buildInfo;
+}
+
 bool MeoBleProvision::_createServiceAndCharacteristics() {
     _svc = _ble->createService(MEO_BLE_PROV_SERV_UUID);
     if (!_svc) return false;
 
     // Per your spec: SSID RW, PASS WO, Model/Manuf RO, DevID RW, TxKey WO, Prog R+Notify
-    _chSsid  = _ble->createCharacteristic(_svc, CH_UUID_WIFI_SSID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-    _chPass  = _ble->createCharacteristic(_svc, CH_UUID_WIFI_PASS, NIMBLE_PROPERTY::WRITE);
-    _chModel = _ble->createCharacteristic(_svc, CH_UUID_DEV_MODEL, NIMBLE_PROPERTY::READ);
-    _chManuf = _ble->createCharacteristic(_svc, CH_UUID_DEV_MANUF, NIMBLE_PROPERTY::READ);
-    _chUserId = _ble->createCharacteristic(_svc, CH_UUID_USER_ID,   NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
-    _chTxKey = _ble->createCharacteristic(_svc, CH_UUID_TX_KEY,   NIMBLE_PROPERTY::WRITE);
+    _chSsid      = _ble->createCharacteristic(_svc, CH_UUID_WIFI_SSID,  NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+    _chPass      = _ble->createCharacteristic(_svc, CH_UUID_WIFI_PASS,  NIMBLE_PROPERTY::WRITE);
+    _chWifiList  = _ble->createCharacteristic(_svc, CH_UUID_WIFI_LIST,  NIMBLE_PROPERTY::READ);
+    _chModel     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MODEL,  NIMBLE_PROPERTY::READ);
+    _chManuf     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MANUF,  NIMBLE_PROPERTY::READ);
+    _chProductId = _ble->createCharacteristic(_svc, CH_UUID_PRODUCT_ID, NIMBLE_PROPERTY::READ);
+    _chBuildInfo = _ble->createCharacteristic(_svc, CH_UUID_BUILD_INFO, NIMBLE_PROPERTY::READ);
+    _chMacAddr   = _ble->createCharacteristic(_svc, CH_UUID_MAC_ADDR,   NIMBLE_PROPERTY::READ);
+    _chUserId    = _ble->createCharacteristic(_svc, CH_UUID_USER_ID,    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+    _chTxKey     = _ble->createCharacteristic(_svc, CH_UUID_TX_KEY,     NIMBLE_PROPERTY::WRITE);
 
-    return _chSsid && _chPass && _chModel && _chManuf && _chUserId && _chTxKey;
+    return _chSsid && _chPass && _chWifiList && _chModel && _chManuf && _chProductId && _chBuildInfo && _chMacAddr && _chUserId && _chTxKey;
 }
 
 void MeoBleProvision::_bindWriteHandlers() {
@@ -79,7 +89,26 @@ void MeoBleProvision::setAutoRebootOnProvision(bool enable, uint32_t delayMs) {
 void MeoBleProvision::_loadInitialValues() {
     String tmp;
     if (_storage->loadString("wifi_ssid", tmp))    _chSsid->setValue(tmp.c_str());
-    if (_storage->loadString("user_id", tmp))    _chUserId->setValue(tmp.c_str());
+    if (_storage->loadString("user_id", tmp))   _chUserId->setValue(tmp.c_str());
+    // Initialize WiFi list characteristic (read-only). Library does not persist list.
+    if (_chWifiList) _chWifiList->setValue("");
+    if (_chProductId) _chProductId->setValue(_devProductId ? _devProductId : "unknown");
+    if (_chBuildInfo) _chBuildInfo->setValue(_buildInfo ? _buildInfo : "unknown");
+
+    // MAC address: use the device's Ethernet MAC (ESP MAC), not BLE
+    if (_chMacAddr) {
+        uint8_t mac_raw[6] = {0};
+        esp_err_t r = esp_read_mac(mac_raw, ESP_MAC_ETH);
+        if (r != ESP_OK) {
+            // fallback to WiFi STA MAC if Ethernet MAC unavailable
+            esp_read_mac(mac_raw, ESP_MAC_WIFI_STA);
+        }
+        char macbuf[18];
+        snprintf(macbuf, sizeof(macbuf), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 mac_raw[0], mac_raw[1], mac_raw[2], mac_raw[3], mac_raw[4], mac_raw[5]);
+        _chMacAddr->setValue(macbuf);
+    }
+
     if (_devModel && _devModel[0])                 _chModel->setValue(_devModel);
     if (_devManuf && _devManuf[0])                 _chManuf->setValue(_devManuf);
 }

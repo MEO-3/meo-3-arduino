@@ -27,8 +27,8 @@ public:
 
     MeoFeature();
 
-    // Wire base transport and device identity
-    void attach(MeoMqttClient* transport, const char* deviceId);
+    // Wire base transport and identity. `userId` may be nullptr.
+    void attach(MeoMqttClient* transport, const char* userId, const char* deviceId);
 
     // Subscribe to invokes and set callback
     bool beginFeatureSubscribe(FeatureCallback cb, void* ctx);
@@ -52,6 +52,7 @@ public:
 
 private:
     MeoMqttClient* _mqtt = nullptr;
+    const char*    _userId = nullptr;
     const char*    _deviceId = nullptr;
 
     // Reusable JSON buffer

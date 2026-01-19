@@ -2,8 +2,9 @@
 
 MeoFeature::MeoFeature() {}
 
-void MeoFeature::attach(MeoMqttClient* transport, const char* deviceId) {
+void MeoFeature::attach(MeoMqttClient* transport, const char* userId, const char* deviceId) {
     _mqtt = transport;
+    _userId = userId;
     _deviceId = deviceId;
     if (_mqtt) {
         _mqtt->setMessageHandler(&MeoFeature::onRawMessage, this);
@@ -15,8 +16,10 @@ bool MeoFeature::beginFeatureSubscribe(FeatureCallback cb, void* ctx) {
     _cb = cb;
     _cbCtx = ctx;
 
-    // Subscribe to all feature invokes for this device
-    String topic = String("meo/") + _deviceId + "/feature/+/invoke";
+    // Subscribe to all feature invokes for this device, prefixed by optional user id
+    String base = String("meo/");
+    if (_userId && _userId[0]) base += _userId + String("/");
+    String topic = base + _deviceId + "/feature/+/invoke";
     return _mqtt->subscribe(topic.c_str());
 }
 
@@ -26,7 +29,9 @@ bool MeoFeature::publishEvent(const char* eventName,
                               uint8_t count) {
     if (!_mqtt || !_mqtt->isConnected() || !_deviceId) return false;
 
-    String topic = String("meo/") + _deviceId + "/event/" + eventName;
+    String base = String("meo/");
+    if (_userId && _userId[0]) base += _userId + String("/");
+    String topic = base + _deviceId + "/event/" + eventName;
 
     StaticJsonDocument<BUF_SIZE> doc;
     for (uint8_t i = 0; i < count; ++i) {
@@ -44,7 +49,9 @@ bool MeoFeature::sendFeatureResponse(const char* featureName,
                                      const char* message) {
     if (!_mqtt || !_mqtt->isConnected() || !_deviceId) return false;
 
-    String topic = String("meo/") + _deviceId + "/event/feature_response";
+    String base = String("meo/");
+    if (_userId && _userId[0]) base += _userId + String("/");
+    String topic = base + _deviceId + "/event/feature_response";
 
     StaticJsonDocument<BUF_SIZE> doc;
     doc["feature_name"] = featureName;
@@ -60,7 +67,9 @@ bool MeoFeature::sendFeatureResponse(const char* featureName,
 
 bool MeoFeature::publishStatus(const char* status) {
     if (!_mqtt || !_mqtt->isConnected() || !_deviceId) return false;
-    String topic = String("meo/") + _deviceId + "/status";
+    String base = String("meo/");
+    if (_userId && _userId[0]) base += _userId + String("/");
+    String topic = base + _deviceId + "/status";
     return _mqtt->publish(topic.c_str(), status, true);
 }
 

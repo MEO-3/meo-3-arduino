@@ -16,29 +16,18 @@
 
 #define CH_UUID_USER_ID             "9f27f7f4-0000-1000-8000-00805f9b34fb" // RW - User ID
 
-// Device info characteristics (use cloud provision)
+// Device info characteristics (use cloud compatible)
 #define CH_UUID_PRODUCT_ID          "9f27f7f5-0000-1000-8000-00805f9b34fb" // RO - Product ID / Manufacturer
 #define CH_UUID_BUILD_INFO          "9f27f7f6-0000-1000-8000-00805f9b34fb" // RO - Build Number / Firmware Version
 #define CH_UUID_MAC_ADDR            "9f27f7f7-0000-1000-8000-00805f9b34fb" // RO - MAC Address
 
-// Device info characteristics (use edge provision)
-// NOTE: use distinct UUIDs (previously `DEV_MODEL` duplicated `DEV_ID`)
+// Device info characteristics (use edge compatible)
 #define CH_UUID_DEV_MODEL           "9f27f7f8-0000-1000-8000-00805f9b34fb" // RO - Device Model
 #define CH_UUID_DEV_MANUF           "9f27f7f9-0000-1000-8000-00805f9b34fb" // RO - Device Manufacturer
 
 // Additional provisioning characteristics used by the implementation
 #define CH_UUID_TX_KEY              "9f27f7fa-0000-1000-8000-00805f9b34fb" // WO - Transmit Key (MQTT password)
 
-
-// All characteristics from f8 to fe are reserved for future use
-
-/**
- * MeoBleProvision
- * - Uses MeoBle to host a Provisioning service with stable UUIDs
- * - Keeps RAM/flash low (no dynamic JSON, small static buffers)
- * - Persists SSID/PASS/Device ID/TxKey via MeoStorage
- * - Model/Manufacturer are read-only and sourced from device config you pass in
- */
 class MeoBleProvision {
 public:
     MeoBleProvision() = default;
@@ -53,6 +42,8 @@ public:
 
     // Fallback initializer
     bool begin(MeoBle* ble, MeoStorage* storage);
+
+    void setCloudCompatibleInfo(const char* productId, const char* buildInfo);
 
     // Start/stop advertising through base BLE
     void startAdvertising();
@@ -73,14 +64,20 @@ private:
 
     const char*        _devModel = nullptr;
     const char*        _devManuf = nullptr;
+    const char*        _buildInfo = nullptr;
+    const char*        _devProductId = nullptr;
 
     NimBLEService*         _svc      = nullptr;
     NimBLECharacteristic*  _chSsid   = nullptr;
     NimBLECharacteristic*  _chPass   = nullptr;
-    NimBLECharacteristic*  _chModel  = nullptr;
-    NimBLECharacteristic*  _chManuf  = nullptr;
-    NimBLECharacteristic*  _chUserId  = nullptr;
-    NimBLECharacteristic*  _chTxKey  = nullptr;
+    NimBLECharacteristic*  _chWifiList = nullptr;
+    NimBLECharacteristic*  _chModel     = nullptr;
+    NimBLECharacteristic*  _chManuf     = nullptr;
+    NimBLECharacteristic*  _chProductId = nullptr;
+    NimBLECharacteristic*  _chBuildInfo = nullptr;
+    NimBLECharacteristic*  _chMacAddr   = nullptr;
+    NimBLECharacteristic*  _chUserId    = nullptr;
+    NimBLECharacteristic*  _chTxKey     = nullptr;
 
     const char*         _wifiStatus = "unknown";
     const char*         _mqttStatus = "unknown";

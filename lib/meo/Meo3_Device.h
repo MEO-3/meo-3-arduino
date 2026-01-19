@@ -35,6 +35,10 @@ public:
     // MQTT broker (gateway)
     void setGateway(const char* host, uint16_t mqttPort = 1883);
 
+    void setCloudCompatibleInfo(const char* productId, const char* buildInfo) {
+        _prov.setCloudCompatibleInfo(productId, buildInfo);
+    }
+
     // Features (simple API)
     bool addFeatureEvent(const char* name);
     bool addFeatureMethod(const char* name, MeoFeatureCallback cb);
@@ -74,6 +78,7 @@ private:
 
     // Identity (from BLE/app)
     String  _deviceId;
+    String  _userId;
     String  _transmitKey;
 
     // Registries (simple arrays)

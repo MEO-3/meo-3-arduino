@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <string.h>
 #include <stdarg.h>
+#include <esp_system.h>
 
 MeoDevice::MeoDevice() {}
 
@@ -106,10 +107,23 @@ bool MeoDevice::start() {
     }
 
     // Load credentials (pre-provisioned via BLE/app)
-    _storage.loadString("device_id", _deviceId);
     _storage.loadString("tx_key", _transmitKey);
-    _logf("INFO", "DEVICE", "Credentials %s",
-          hasCredentials() ? "present" : "missing");
+    // Load optional user id (top-level MQTT namespace)
+    _storage.loadString("user_id", _userId);
+    // device_id from ESP MAC (Ethernet MAC preferred)
+    uint8_t mac_raw[6] = {0};
+    esp_err_t r = esp_read_mac(mac_raw, ESP_MAC_ETH);
+    if (r != ESP_OK) {
+        esp_read_mac(mac_raw, ESP_MAC_WIFI_STA);
+    }
+    char macbuf[13]; // 12 hex chars + null
+    snprintf(macbuf, sizeof(macbuf), "%02X%02X%02X%02X%02X%02X",
+                mac_raw[0], mac_raw[1], mac_raw[2], mac_raw[3], mac_raw[4], mac_raw[5]);
+    _deviceId = String(macbuf);
+    if (_logger && _debugTagEnabled("DEVICE")) {
+        _logf("DEBUG", "DEVICE", "Generated device_id from MAC: %s", macbuf);
+    }
+    _logf("INFO", "DEVICE", "Credentials %s", hasCredentials() ? "present" : "missing");
 
     // Only proceed if both WiFi and credentials are ready
     if (!_wifiReady || !hasCredentials()) {
@@ -158,7 +172,9 @@ bool MeoDevice::publishEvent(const char* eventName,
                              const char* const* values,
                              uint8_t count) {
     if (!_mqtt.isConnected()) return false;
-    String topic = String("meo/") + _deviceId + "/event/" + eventName;
+    String base = String("meo/");
+    if (_userId.length()) base += _userId + "/";
+    String topic = base + _deviceId + "/event/" + eventName;
 
     StaticJsonDocument<512> doc;
     for (uint8_t i = 0; i < count; ++i) {
@@ -177,7 +193,9 @@ bool MeoDevice::publishEvent(const char* eventName,
 
 bool MeoDevice::publishEvent(const char* eventName, const MeoEventPayload& payload) {
     if (!_mqtt.isConnected()) return false;
-    String topic = String("meo/") + _deviceId + "/event/" + eventName;
+    String base = String("meo/");
+    if (_userId.length()) base += _userId + "/";
+    String topic = base + _deviceId + "/event/" + eventName;
 
     StaticJsonDocument<512> doc;
     for (const auto& kv : payload) {
@@ -198,7 +216,9 @@ bool MeoDevice::sendFeatureResponse(const char* featureName,
                                     bool success,
                                     const char* message) {
     if (!_mqtt.isConnected()) return false;
-    String topic = String("meo/") + _deviceId + "/event/feature_response";
+    String base = String("meo/");
+    if (_userId.length()) base += _userId + "/";
+    String topic = base + _deviceId + "/event/feature_response";
 
     StaticJsonDocument<512> doc;
     doc["feature_name"] = featureName;
@@ -237,7 +257,9 @@ bool MeoDevice::_connectMqttAndDeclare() {
 
     // LWT: status offline retained
     {
-        String willTopic = String("meo/") + _deviceId + "/status";
+        String base = String("meo/");
+        if (_userId.length()) base += _userId + "/";
+        String willTopic = base + _deviceId + "/status";
         _mqtt.setWill(willTopic.c_str(), "offline", 0, false);
     }
 
@@ -249,7 +271,9 @@ bool MeoDevice::_connectMqttAndDeclare() {
 
     // Subscribe to feature invokes and wire handler
     {
-        String topic = String("meo/") + _deviceId + "/feature/+/invoke";
+        String base = String("meo/");
+        if (_userId.length()) base += _userId + "/";
+        String topic = base + _deviceId + "/feature/+/invoke";
         _mqtt.subscribe(topic.c_str());
         _mqtt.setMessageHandler(&_mqttThunk, this);
         if (_logger && _debugTagEnabled("DEVICE")) {
@@ -259,7 +283,9 @@ bool MeoDevice::_connectMqttAndDeclare() {
 
     // Publish online status
     {
-        String statusTopic = String("meo/") + _deviceId + "/status";
+        String base = String("meo/");
+        if (_userId.length()) base += _userId + "/";
+        String statusTopic = base + _deviceId + "/status";
         _mqtt.publish(statusTopic.c_str(), "online", true);
     }
 
@@ -273,7 +299,9 @@ bool MeoDevice::_connectMqttAndDeclare() {
 bool MeoDevice::_publishDeclare() {
     if (!_mqtt.isConnected()) return false;
 
-    String topic = String("meo/") + _deviceId + "/declare";
+    String base = String("meo/");
+    if (_userId.length()) base += _userId + "/";
+    String topic = base + _deviceId + "/declare";
     StaticJsonDocument<1024> doc;
 
     JsonObject info = doc.createNestedObject("device_info");

@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Meo3_Device.h>
 
-#define LED_BUILTIN 8
+#define LED_BUILTIN LED_BUILTIN
 
 MeoDevice meo;
 
@@ -36,7 +36,8 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
 
     meo.setDeviceInfo("DIY Sensor", "ThingAI Lab");
-    meo.setGateway("meo-open-service.local", 1883);
+    meo.setGateway("2cd0d770fc9e4de99263e34330dc866e.s1.eu.hivemq.cloud", 8883);
+    meo.setCloudCompatibleInfo("product-1234", "build-20240601");
     meo.setLogger(meoLogger);
     meo.setDebugTags("DEVICE,MQTT,PROV");
 
