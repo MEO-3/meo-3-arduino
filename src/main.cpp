@@ -35,7 +35,7 @@ void setup() {
 
     pinMode(LED_BUILTIN, OUTPUT);
 
-    meo.setDeviceInfo("DIY Sensor", "ThingAI Lab");
+    meo.setDeviceInfo("MEO Device", "ThingAI Lab");
     meo.setGateway("2cd0d770fc9e4de99263e34330dc866e.s1.eu.hivemq.cloud", 8883);
     meo.setCloudCompatibleInfo("product-1234", "build-20240601");
     meo.setLogger(meoLogger);

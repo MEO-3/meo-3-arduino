@@ -40,12 +40,13 @@ bool MeoBleProvision::_createServiceAndCharacteristics() {
     _chSsid      = _ble->createCharacteristic(_svc, CH_UUID_WIFI_SSID,  NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
     _chPass      = _ble->createCharacteristic(_svc, CH_UUID_WIFI_PASS,  NIMBLE_PROPERTY::WRITE);
     _chWifiList  = _ble->createCharacteristic(_svc, CH_UUID_WIFI_LIST,  NIMBLE_PROPERTY::READ);
-    _chModel     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MODEL,  NIMBLE_PROPERTY::READ);
-    _chManuf     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MANUF,  NIMBLE_PROPERTY::READ);
+    _chUserId    = _ble->createCharacteristic(_svc, CH_UUID_USER_ID,    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
     _chProductId = _ble->createCharacteristic(_svc, CH_UUID_PRODUCT_ID, NIMBLE_PROPERTY::READ);
     _chBuildInfo = _ble->createCharacteristic(_svc, CH_UUID_BUILD_INFO, NIMBLE_PROPERTY::READ);
     _chMacAddr   = _ble->createCharacteristic(_svc, CH_UUID_MAC_ADDR,   NIMBLE_PROPERTY::READ);
-    _chUserId    = _ble->createCharacteristic(_svc, CH_UUID_USER_ID,    NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+    _chModel     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MODEL,  NIMBLE_PROPERTY::READ);
+    _chManuf     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MANUF,  NIMBLE_PROPERTY::READ);
+    
     _chTxKey     = _ble->createCharacteristic(_svc, CH_UUID_TX_KEY,     NIMBLE_PROPERTY::WRITE);
 
     return _chSsid && _chPass && _chWifiList && _chModel && _chManuf && _chProductId && _chBuildInfo && _chMacAddr && _chUserId && _chTxKey;
