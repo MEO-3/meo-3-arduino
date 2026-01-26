@@ -31,8 +31,7 @@ void meoLogger(const char* level, const char* message) {
 
 void setup() {
     Serial.begin(115200);
-    delay(2000);
-
+    
     pinMode(LED_BUILTIN, OUTPUT);
 
     meo.setDeviceInfo("MEO Device", "ThingAI Lab");
