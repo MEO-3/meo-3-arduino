@@ -1,4 +1,5 @@
 #include "Meo3_BleProvision.h"
+#include "Meo3_Logger.h"
 #include <stdarg.h>
 #include <esp_system.h>
 #include <string>
@@ -13,8 +14,7 @@ void MeoBleProvision::setDebugTags(const char* tagsCsv) {
     _debugTags[sizeof(_debugTags) - 1] = '\0';
 }
 
-bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage,
-                            const char* devModel, const char* devManufacturer) {
+bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage, const char* devModel, const char* devManufacturer) {
     _ble = ble;
     _storage = storage;
     _devModel = devModel;
@@ -24,14 +24,16 @@ bool MeoBleProvision::begin(MeoBle* ble, MeoStorage* storage,
     _bindWriteHandlers();
     _svc->start();
     _loadInitialValues();
-    _updateStatus();
-    _logger("INFO", "BLE Provisioning service started");
     return true;
 }
 
 void MeoBleProvision::setCloudCompatibleInfo(const char* productId, const char* buildInfo) {
-    _devProductId = productId;
-    _buildInfo = buildInfo;
+    _devProductIdStr = productId ? productId : "";
+    _buildInfoStr    = buildInfo ? buildInfo : "";
+    MeoLogf("DEBUG", "PROV", "Cloud compatible info set: productId=%s buildInfo=%s", _devProductIdStr.c_str(), _buildInfoStr.c_str());
+    // If characteristics already created, update their values so central reads full strings
+    if (_chProductId && !_devProductIdStr.empty()) _chProductId->setValue(_devProductIdStr);
+    if (_chBuildInfo && !_buildInfoStr.empty())    _chBuildInfo->setValue(_buildInfoStr);
 }
 
 bool MeoBleProvision::_createServiceAndCharacteristics() {
@@ -48,7 +50,6 @@ bool MeoBleProvision::_createServiceAndCharacteristics() {
     _chMacAddr   = _ble->createCharacteristic(_svc, CH_UUID_MAC_ADDR,   NIMBLE_PROPERTY::READ);
     _chModel     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MODEL,  NIMBLE_PROPERTY::READ);
     _chManuf     = _ble->createCharacteristic(_svc, CH_UUID_DEV_MANUF,  NIMBLE_PROPERTY::READ);
-    
     _chTxKey     = _ble->createCharacteristic(_svc, CH_UUID_TX_KEY,     NIMBLE_PROPERTY::WRITE);
 
     return _chSsid && _chPass && _chWifiList && _chModel && _chManuf && _chProductId && _chBuildInfo && _chMacAddr && _chUserId && _chTxKey;
@@ -65,15 +66,9 @@ void MeoBleProvision::startAdvertising() { if (_ble) _ble->startAdvertising(); }
 void MeoBleProvision::stopAdvertising()  { if (_ble) _ble->stopAdvertising();  }
 
 void MeoBleProvision::loop() {
-    // Status notify every ~2 seconds
-    static uint32_t lastStatus = 0;
-    if (millis() - lastStatus > 2000) {
-        _updateStatus();
-        lastStatus = millis();
-    }
     // Execute scheduled reboot
     if (_autoReboot && _rebootScheduled && millis() >= _rebootAtMs) {
-        _logger("INFO", "Reboot now");
+        MeoLog("INFO", "PROV", "Reboot now");
         delay(100);
         ESP.restart();
     }
@@ -91,29 +86,34 @@ void MeoBleProvision::setAutoRebootOnProvision(bool enable, uint32_t delayMs) {
 
 void MeoBleProvision::_loadInitialValues() {
     std::string tmp;
-    if (_storage->loadString("wifi_ssid", tmp))    _chSsid->setValue(tmp.c_str());
-    if (_storage->loadString("user_id", tmp))   _chUserId->setValue(tmp.c_str());
-    // Initialize WiFi list characteristic (read-only). Library does not persist list.
-    if (_chWifiList) _chWifiList->setValue("");
-    if (_chProductId) _chProductId->setValue(_devProductId ? _devProductId : "unknown");
-    if (_chBuildInfo) _chBuildInfo->setValue(_buildInfo ? _buildInfo : "unknown");
-
+    if (_storage->loadString("wifi_ssid", tmp)) {
+        _wifiSsidStr = tmp;
+        if (_chSsid) _chSsid->setValue(_wifiSsidStr);
+    }
+    if (_storage->loadString("user_id", tmp))   _chUserId->setValue(tmp);
     // MAC address: use the device's Ethernet MAC (ESP MAC), not BLE
     if (_chMacAddr) {
         uint8_t mac_raw[6] = {0};
         esp_err_t r = esp_read_mac(mac_raw, ESP_MAC_ETH);
-        if (r != ESP_OK) {
-            // fallback to WiFi STA MAC if Ethernet MAC unavailable
-            esp_read_mac(mac_raw, ESP_MAC_WIFI_STA);
-        }
-        char macbuf[18];
-        snprintf(macbuf, sizeof(macbuf), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 mac_raw[0], mac_raw[1], mac_raw[2], mac_raw[3], mac_raw[4], mac_raw[5]);
-        _chMacAddr->setValue(macbuf);
+        _chMacAddr->setValue(mac_raw, 6);
     }
 
-    if (_devModel && _devModel[0])  _chModel->setValue(_devModel);
-    if (_devManuf && _devManuf[0])  _chManuf->setValue(_devManuf);
+    if (!_devModel.empty()) {
+        _chModel->setValue(_devModel);
+        MeoLogf("DEBUG", "PROV", "model=%s", _devModel.c_str());
+    }
+    if (!_devManuf.empty()) {
+        _chManuf->setValue(_devManuf);
+        MeoLogf("DEBUG", "PROV", "manuf=%s", _devManuf.c_str());
+    }
+    if (!_devProductIdStr.empty()) {
+        if (_chProductId) _chProductId->setValue(_devProductIdStr);
+        MeoLogf("DEBUG", "PROV", "productId=%s", _devProductIdStr.c_str());
+    }
+    if (!_buildInfoStr.empty()) {
+        if (_chBuildInfo) _chBuildInfo->setValue(_buildInfoStr);
+        MeoLogf("DEBUG", "PROV", "buildInfo=%s", _buildInfoStr.c_str());
+    }
 }
 
 void MeoBleProvision::_scheduleRebootIfReady() {
@@ -139,6 +139,7 @@ void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
 
     if (uuid.equals(NimBLEUUID(CH_UUID_WIFI_SSID))) {
         _storage->saveString("wifi_ssid", s);
+        _wifiSsidStr = s;
         _ssidWritten = true;
         _logger("INFO", "SSID updated");
         _scheduleRebootIfReady();
@@ -160,16 +161,6 @@ void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
         _storage->saveString("tx_key", s);
         _logger("INFO", "Transmit Key updated");
         return;
-    }
-}
-
-void MeoBleProvision::_updateStatus() {
-    snprintf(_statusBuf, sizeof(_statusBuf),
-             "WiFi: %s, MQTT: %s",
-             _wifiStatus, _mqttStatus);
-    // Progress characteristic removed; only log DEBUG when enabled.
-    if (_logger && _debugTagEnabled("PROV")) {
-        _logger("DEBUG", _statusBuf);
     }
 }
 

@@ -27,8 +27,7 @@ public:
     void setDebugTags(const char* tagsCsv);
 
     // Device info for declare and BLE RO fields
-    void setDeviceInfo(const char* model,
-                       const char* manufacturer);
+    void setDeviceInfo(const char* model, const char* manufacturer);
 
     // Optional: provide WiFi upfront; otherwise BLE provisioning can set it
     void beginWifi(const char* ssid, const char* pass);
@@ -36,9 +35,7 @@ public:
     // MQTT broker (gateway)
     void setGateway(const char* host, uint16_t mqttPort = 1883);
 
-    void setCloudCompatibleInfo(const char* productId, const char* buildInfo) {
-        _prov.setCloudCompatibleInfo(productId, buildInfo);
-    }
+    void setCloudCompatibleInfo(const char* productId, const char* buildInfo);
 
     // Features (simple API)
     bool addFeatureEvent(const char* name);

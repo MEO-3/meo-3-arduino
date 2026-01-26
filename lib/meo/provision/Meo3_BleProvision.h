@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
+#include <string>
 #include "../storage/Meo3_Storage.h"
 #include "../ble/Meo3_Ble.h"
 #include "../Meo3_Type.h" // MeoLogFunction
@@ -37,11 +38,7 @@ public:
     void setDebugTags(const char* tagsCsv); // enables DEBUG for "PROV" when tag present
 
     // Initialize with BLE and storage; model/manuf taken from device config (recommended)
-    bool begin(MeoBle* ble, MeoStorage* storage,
-               const char* devModel, const char* devManufacturer);
-
-    // Fallback initializer
-    bool begin(MeoBle* ble, MeoStorage* storage);
+    bool begin(MeoBle* ble, MeoStorage* storage, const char* devModel, const char* devManufacturer);
 
     void setCloudCompatibleInfo(const char* productId, const char* buildInfo);
 
@@ -62,10 +59,11 @@ private:
     MeoBle*            _ble      = nullptr;
     MeoStorage*        _storage  = nullptr;
 
-    const char*        _devModel = nullptr;
-    const char*        _devManuf = nullptr;
-    const char*        _buildInfo = nullptr;
-    const char*        _devProductId = nullptr;
+    std::string        _devModel;
+    std::string        _devManuf;
+    std::string        _devProductIdStr;
+    std::string        _buildInfoStr;
+    std::string        _wifiSsidStr;
 
     NimBLEService*         _svc      = nullptr;
     NimBLECharacteristic*  _chSsid   = nullptr;
@@ -79,8 +77,8 @@ private:
     NimBLECharacteristic*  _chUserId    = nullptr;
     NimBLECharacteristic*  _chTxKey     = nullptr;
 
-    const char*         _wifiStatus = "unknown";
-    const char*         _mqttStatus = "unknown";
+    const char*         _wifiStatus;
+    const char*         _mqttStatus;
     char                _statusBuf[128];
 
     bool                _autoReboot = true;

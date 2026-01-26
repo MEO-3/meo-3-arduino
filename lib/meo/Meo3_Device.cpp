@@ -27,10 +27,8 @@ void MeoDevice::setDeviceInfo(const char* model,
                               const char* manufacturer) {
     _model = model;
     _manufacturer = manufacturer;
-    if (_logger && _debugTagEnabled("DEVICE")) {
-        _logf("DEBUG", "DEVICE", "Device info set: model=%s manufacturer=%s",
-               model ? model : "", manufacturer ? manufacturer : "");
-    }
+    _logf("DEBUG", "DEVICE", "Device info set: model=%s manufacturer=%s", 
+        _model ? _model : "", _manufacturer ? _manufacturer : "");
     
 }
 
@@ -54,6 +52,10 @@ void MeoDevice::setGateway(const char* host, uint16_t mqttPort) {
     _gatewayHost = host;
     _mqttPort = mqttPort;
     _logf("INFO", "DEVICE", "Gateway set: %s:%u", host ? host : "", mqttPort);
+}
+
+void MeoDevice::setCloudCompatibleInfo(const char* productId, const char* buildInfo) {
+    _prov.setCloudCompatibleInfo(productId, buildInfo);
 }
 
 bool MeoDevice::addFeatureEvent(const char* name) {
@@ -84,7 +86,7 @@ bool MeoDevice::start() {
     }
 
     // BLE + Provisioning (model/manufacturer read-only via BLE)
-    _ble.begin(_model ? _model : "MEO Device");
+    _ble.begin(_model);
     _prov.setLogger(_logger);
     _prov.setDebugTags(_debugTags);
     _prov.begin(&_ble, &_storage, _model, _manufacturer);
