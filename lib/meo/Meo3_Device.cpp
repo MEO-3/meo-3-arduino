@@ -84,6 +84,7 @@ bool MeoDevice::start() {
     }
 
     // BLE + Provisioning (model/manufacturer read-only via BLE)
+    _ble.begin(_model ? _model : "MEO Device");
     _prov.setLogger(_logger);
     _prov.setDebugTags(_debugTags);
     _prov.begin(&_ble, &_storage, _model, _manufacturer);
