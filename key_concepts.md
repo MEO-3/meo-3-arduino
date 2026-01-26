@@ -3,7 +3,7 @@
 This document summarizes the core concepts and runtime flows used by the MEO Arduino SDK: provisioning via BLE, device identity and credentials, MQTT connectivity and topic patterns, and the feature invoke/event model.
 
 **Overview**
-- Purpose: provide a small, battery-friendly flow to provision Wi‑Fi and device credentials over BLE, connect to an MQTT gateway, declare device capabilities, and handle feature invocations/events.
+- Purpose: provide a small flow to provision Wi‑Fi and device credentials over BLE, connect to an MQTT gateway, declare device capabilities, and handle feature invocations/events.
 - Main modules: BLE Provisioning (`MeoBleProvision`), MQTT transport (`MeoMqttClient`), Feature layer (`MeoFeature`/MeoDevice), Storage (`MeoStorage`).
 
 **Provisioning (BLE)**
@@ -34,12 +34,12 @@ Implementation note: always pass owned strings (std::string or explicit buffer+l
 The SDK uses the `meo` topic namespace and supports two invoke patterns:
 
 1) Edge/topic-encoded (legacy)
-- Subscribe: `meo/{userId/}{deviceId}/feature/{featureName}/invoke`
+- Subscribe: `meo/{deviceId}/feature/{featureName}/invoke`
 - Example: `meo/device123/feature/led/invoke`
 - Payload: JSON describing parameters (convention: `{ "params": { ... } }`).
 
 2) Cloud/payload-encoded (cloud-compatible)
-- Subscribe: `meo/{userId/}{deviceId}/feature`
+- Subscribe: `meo/{userId}/{deviceId}/feature`
 - Example: `meo/user42/device123/feature`
 - Payload: JSON that includes a field naming the feature and params, e.g.:
   {
@@ -49,10 +49,10 @@ The SDK uses the `meo` topic namespace and supports two invoke patterns:
 - The SDK will accept `feature` or `feature_name` as the key for the feature.
 
 Event publishing (device → server):
-- Base event topic: `meo/{userId/}{deviceId}/event`
-- Per-event: `meo/{userId/}{deviceId}/event/{eventName}` (used by helpers that include the event name)
+- Base event topic: `meo/{userId}/{deviceId}/event`
+- Per-event: `meo/{userId}/{deviceId}/event/{eventName}` (used by helpers that include the event name)
 
-Feature response: published to `meo/{userId/}{deviceId}/event/feature_response` with JSON payload including `feature_name`, `device_id`, `success`, and optional `message`.
+Feature response: published to `meo/{userId}/{deviceId}/event/feature_response` with JSON payload including `feature_name`, `device_id`, `success`, and optional `message`.
 
 **Feature invoke flow (device side)**
 1. MQTT message arrives on subscribed topic.
