@@ -78,6 +78,7 @@ private:
     std::string  _deviceId;
     std::string  _userId;
     std::string  _transmitKey;
+    bool         _cloudCompatible = false; // true when cloud-compatible product/build info set
 
     // Registries (simple arrays)
     const char* _eventNames[MEO_MAX_FEATURE_EVENTS];

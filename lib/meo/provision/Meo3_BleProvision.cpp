@@ -98,20 +98,20 @@ void MeoBleProvision::_loadInitialValues() {
         _chMacAddr->setValue(mac_raw, 6);
     }
 
-    if (!_devModel.empty()) {
+    if (_chModel) {
         _chModel->setValue(_devModel);
         MeoLogf("DEBUG", "PROV", "model=%s", _devModel.c_str());
     }
-    if (!_devManuf.empty()) {
+    if (_chManuf) {
         _chManuf->setValue(_devManuf);
         MeoLogf("DEBUG", "PROV", "manuf=%s", _devManuf.c_str());
     }
-    if (!_devProductIdStr.empty()) {
-        if (_chProductId) _chProductId->setValue(_devProductIdStr);
+    if (_chProductId) {
+        _chProductId->setValue(_devProductIdStr);
         MeoLogf("DEBUG", "PROV", "productId=%s", _devProductIdStr.c_str());
     }
-    if (!_buildInfoStr.empty()) {
-        if (_chBuildInfo) _chBuildInfo->setValue(_buildInfoStr);
+    if (_chBuildInfo) {
+        _chBuildInfo->setValue(_buildInfoStr);
         MeoLogf("DEBUG", "PROV", "buildInfo=%s", _buildInfoStr.c_str());
     }
 }

@@ -56,6 +56,8 @@ void MeoDevice::setGateway(const char* host, uint16_t mqttPort) {
 
 void MeoDevice::setCloudCompatibleInfo(const char* productId, const char* buildInfo) {
     _prov.setCloudCompatibleInfo(productId, buildInfo);
+    // mark device as cloud-compatible when a productId is provided
+    _cloudCompatible = (productId && productId[0]);
 }
 
 bool MeoDevice::addFeatureEvent(const char* name) {
@@ -178,7 +180,7 @@ bool MeoDevice::publishEvent(const char* eventName,
     if (!_mqtt.isConnected()) return false;
     std::string base = "meo/";
     if (_userId.length()) base += _userId + "/";
-    std::string topic = base + _deviceId + "/event/" + eventName;
+    std::string topic = base + _deviceId + "/event";
 
     StaticJsonDocument<512> doc;
     for (uint8_t i = 0; i < count; ++i) {
@@ -277,7 +279,14 @@ bool MeoDevice::_connectMqttAndDeclare() {
     {
         std::string base = "meo/";
         if (_userId.length()) base += _userId + "/";
-        std::string topic = base + _deviceId + "/feature/+/invoke";
+        std::string topic;
+        if (_cloudCompatible) {
+            // cloud-compatible: single topic where payload contains feature name
+            topic = base + _deviceId + "/feature";
+        } else {
+            // edge-compatible: topic encodes feature name in topic path
+            topic = base + _deviceId + "/feature/+/invoke";
+        }
         _mqtt.subscribe(topic.c_str());
         _mqtt.setMessageHandler(&_mqttThunk, this);
         if (_logger && _debugTagEnabled("DEVICE")) {
@@ -341,33 +350,60 @@ void MeoDevice::_mqttThunk(const char* topic, const uint8_t* payload, unsigned i
 }
 
 void MeoDevice::_dispatchInvoke(const char* topic, const uint8_t* payload, unsigned int length) {
-    // Expect "meo/{device_id}/feature/{featureName}/invoke"
+    // Two supported invoke forms:
+    // 1) Topic-encoded: meo/{...}/{device_id}/feature/{featureName}/invoke
+    // 2) Payload-encoded (cloud-compatible): meo/{...}/{device_id}/feature with JSON { "feature"|"feature_name": "name", "params": {...} }
+
+    char featureName[64] = {0};
+    bool featureFromTopic = false;
+
     const char* featureMarker = strstr(topic, "/feature/");
     const char* invokeMarker  = strstr(topic, "/invoke");
-    if (!featureMarker || !invokeMarker || invokeMarker <= featureMarker) return;
+    if (featureMarker && invokeMarker && invokeMarker > featureMarker) {
+        featureMarker += 9; // strlen("/feature/")
+        size_t nameLen = (size_t)(invokeMarker - featureMarker);
+        if (nameLen > 0 && nameLen < sizeof(featureName)) {
+            memcpy(featureName, featureMarker, nameLen);
+            featureName[nameLen] = '\0';
+            featureFromTopic = true;
+        }
+    }
 
-    featureMarker += 9; // strlen("/feature/")
-    size_t nameLen = (size_t)(invokeMarker - featureMarker);
-    if (nameLen == 0 || nameLen >= 64) return;
-
-    char featureName[64];
-    memcpy(featureName, featureMarker, nameLen);
-    featureName[nameLen] = '\0';
-
-    // Parse minimal JSON
+    // Parse minimal JSON regardless of form to extract params (and possibly feature name)
     StaticJsonDocument<512> doc;
     DeserializationError err = deserializeJson(doc, payload, length);
-    if (err) return;
+    bool jsonOk = (err == DeserializationError::Ok);
+    if (!jsonOk && !featureFromTopic) return; // if no JSON and feature not in topic, nothing to do
+
+    // If payload provides feature name (cloud-compatible form), accept keys "feature" or "feature_name"
+    if (!featureFromTopic && jsonOk) {
+        if (doc.containsKey("feature") && doc["feature"].is<const char*>()) {
+            strncpy(featureName, doc["feature"].as<const char*>(), sizeof(featureName)-1);
+        } else if (doc.containsKey("feature_name") && doc["feature_name"].is<const char*>()) {
+            strncpy(featureName, doc["feature_name"].as<const char*>(), sizeof(featureName)-1);
+        }
+    }
+
+    if (featureName[0] == '\0') return; // no feature name discovered
 
     // Build MeoFeatureCall
     MeoFeatureCall call;
     call.deviceId    = _deviceId;
     call.featureName = featureName;
 
-    if (doc.containsKey("params") && doc["params"].is<JsonObject>()) {
-        for (JsonPair kv : doc["params"].as<JsonObject>()) {
+    // Extract params: prefer explicit "params" object, otherwise include other top-level keys except feature keys
+    if (jsonOk) {
+        if (doc.containsKey("params") && doc["params"].is<JsonObject>()) {
+            for (JsonPair kv : doc["params"].as<JsonObject>()) {
                 call.params[kv.key().c_str()] = kv.value().as<const char*>();
             }
+        } else {
+            for (JsonPair kv : doc.as<JsonObject>()) {
+                const char* k = kv.key().c_str();
+                if (strcmp(k, "feature") == 0 || strcmp(k, "feature_name") == 0) continue;
+                call.params[k] = kv.value().as<const char*>();
+            }
+        }
     }
 
     // Dispatch to registered handler
