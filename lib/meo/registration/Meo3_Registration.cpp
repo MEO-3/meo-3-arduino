@@ -1,4 +1,5 @@
 #include "Meo3_Registration.h"
+#include <string>
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
@@ -22,8 +23,8 @@ void MeoRegistrationClient::setLogger(MeoLogFunction logger) {
 
 bool MeoRegistrationClient::registerIfNeeded(const MeoDeviceInfo& devInfo,
                                              const MeoFeatureRegistry& features,
-                                             String& deviceIdOut,
-                                             String& transmitKeyOut) {
+                                             std::string& deviceIdOut,
+                                             std::string& transmitKeyOut) {
     if (deviceIdOut.length() > 0 && transmitKeyOut.length() > 0) {
         // already have credentials
         return true;
@@ -41,7 +42,7 @@ bool MeoRegistrationClient::registerIfNeeded(const MeoDeviceInfo& devInfo,
     }
 
     // 2) Listen on TCP 8091 for gateway response
-    String responseJson;
+    std::string responseJson;
     if (!_waitForRegistrationResponse(responseJson)) {
         if (_logger) _logger("ERROR", "Did not receive registration response");
         return false;
@@ -87,10 +88,10 @@ bool MeoRegistrationClient::_sendBroadcast(const MeoDeviceInfo& devInfo,
 
     IPAddress broadcastIP = ~WiFi.subnetMask() | WiFi.gatewayIP(); // standard broadcast calc
     if (_logger) {
-        String msg = "Sending discovery broadcast to ";
-        msg += broadcastIP.toString();
+        std::string msg = "Sending discovery broadcast to ";
+        msg += broadcastIP.toString().c_str();
         msg += ":";
-        msg += MEO_REG_DISCOVERY_PORT;
+        msg += std::to_string(MEO_REG_DISCOVERY_PORT);
         _logger("INFO", msg.c_str());
     }
 
@@ -102,7 +103,7 @@ bool MeoRegistrationClient::_sendBroadcast(const MeoDeviceInfo& devInfo,
     return true;
 }
 
-bool MeoRegistrationClient::_waitForRegistrationResponse(String& responseJson) {
+bool MeoRegistrationClient::_waitForRegistrationResponse(std::string& responseJson) {
     WiFiServer server(MEO_REG_LISTEN_PORT);
     server.begin();
 
@@ -121,7 +122,7 @@ bool MeoRegistrationClient::_waitForRegistrationResponse(String& responseJson) {
         if (_logger) _logger("INFO", "Gateway connected for registration");
 
         // Read until newline or timeout
-        responseJson = "";
+        responseJson.clear();
         unsigned long connStart = millis();
         while (client.connected() && (millis() - connStart) < 5000) {
             while (client.available()) {
@@ -130,7 +131,7 @@ bool MeoRegistrationClient::_waitForRegistrationResponse(String& responseJson) {
                     client.stop();
                     server.stop();
                     if (_logger) {
-                        String msg = "Received registration response: ";
+                        std::string msg = "Received registration response: ";
                         msg += responseJson;
                         _logger("DEBUG", msg.c_str());
                     }
@@ -149,14 +150,14 @@ bool MeoRegistrationClient::_waitForRegistrationResponse(String& responseJson) {
     return false;
 }
 
-bool MeoRegistrationClient::_parseRegistrationResponse(const String& json,
-                                                       String& deviceIdOut,
-                                                       String& transmitKeyOut) {
+bool MeoRegistrationClient::_parseRegistrationResponse(const std::string& json,
+                                                       std::string& deviceIdOut,
+                                                       std::string& transmitKeyOut) {
     StaticJsonDocument<256> doc;
-    DeserializationError err = deserializeJson(doc, json);
+    DeserializationError err = deserializeJson(doc, json.c_str());
     if (err) {
         if (_logger) {
-            String msg = "Failed to parse registration response: ";
+            std::string msg = "Failed to parse registration response: ";
             msg += err.c_str();
             _logger("ERROR", msg.c_str());
         }

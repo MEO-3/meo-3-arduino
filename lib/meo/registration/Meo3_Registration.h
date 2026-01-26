@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Meo3_Type.h"
+#include <string>
 
 class MeoRegistrationClient {
 public:
@@ -15,18 +16,18 @@ public:
     // 2) listen on TCP 8091 for gateway response
     bool registerIfNeeded(const MeoDeviceInfo& devInfo,
                           const MeoFeatureRegistry& features,
-                          String& deviceIdOut,
-                          String& transmitKeyOut);
+                          std::string& deviceIdOut,
+                          std::string& transmitKeyOut);
 
 private:
-    String         _gatewayHost;
+    std::string    _gatewayHost;
     uint16_t       _port;
     MeoLogFunction _logger;
 
     bool _sendBroadcast(const MeoDeviceInfo& devInfo,
                         const MeoFeatureRegistry& features);
-    bool _waitForRegistrationResponse(String& responseJson);
-    bool _parseRegistrationResponse(const String& json,
-                                    String& deviceIdOut,
-                                    String& transmitKeyOut);
+    bool _waitForRegistrationResponse(std::string& responseJson);
+    bool _parseRegistrationResponse(const std::string& json,
+                                    std::string& deviceIdOut,
+                                    std::string& transmitKeyOut);
 };

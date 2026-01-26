@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <string>
 
 #include "Meo3_Type.h"   // MeoFeatureCall, MeoEventPayload, MeoFeatureCallback, MeoConnectionType, MeoLogFunction
 #include "storage/Meo3_Storage.h"
@@ -77,9 +78,9 @@ private:
     uint16_t    _mqttPort = 1883;
 
     // Identity (from BLE/app)
-    String  _deviceId;
-    String  _userId;
-    String  _transmitKey;
+    std::string  _deviceId;
+    std::string  _userId;
+    std::string  _transmitKey;
 
     // Registries (simple arrays)
     const char* _eventNames[MEO_MAX_FEATURE_EVENTS];

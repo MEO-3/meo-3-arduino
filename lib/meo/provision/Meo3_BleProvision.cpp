@@ -1,6 +1,8 @@
 #include "Meo3_BleProvision.h"
 #include <stdarg.h>
 #include <esp_system.h>
+#include <string>
+#include <cctype>
 
 void MeoBleProvision::setLogger(MeoLogFunction logger) {
     _logger = logger;
@@ -88,7 +90,7 @@ void MeoBleProvision::setAutoRebootOnProvision(bool enable, uint32_t delayMs) {
 }
 
 void MeoBleProvision::_loadInitialValues() {
-    String tmp;
+    std::string tmp;
     if (_storage->loadString("wifi_ssid", tmp))    _chSsid->setValue(tmp.c_str());
     if (_storage->loadString("user_id", tmp))   _chUserId->setValue(tmp.c_str());
     // Initialize WiFi list characteristic (read-only). Library does not persist list.
@@ -129,9 +131,11 @@ void MeoBleProvision::_onWriteStatic(NimBLECharacteristic* ch, void* ctx) {
 
 void MeoBleProvision::_onWrite(NimBLECharacteristic* ch) {
     const NimBLEUUID& uuid = ch->getUUID();
-    std::string val = ch->getValue();
-    String s(val.c_str());
-    s.trim(); // strip CR/LF and spaces
+    std::string s = ch->getValue();
+    // trim whitespace (including CR/LF) in-place
+    while (!s.empty() && std::isspace((unsigned char)s.back())) s.pop_back();
+    size_t start = 0; while (start < s.size() && std::isspace((unsigned char)s[start])) ++start;
+    if (start > 0) s.erase(0, start);
 
     if (uuid.equals(NimBLEUUID(CH_UUID_WIFI_SSID))) {
         _storage->saveString("wifi_ssid", s);

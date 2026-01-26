@@ -30,22 +30,21 @@ bool MeoStorage::saveBytes(const char* key, const uint8_t* data, size_t length) 
     return (written == length);
 }
 
-bool MeoStorage::loadString(const char* key, String& valueOut) {
+bool MeoStorage::loadString(const char* key, std::string& valueOut) {
     if (!_initialized || !key) return false;
     if (!_prefs.isKey(key)) return false;
-    valueOut = _prefs.getString(key, "");
+    valueOut = std::string(_prefs.getString(key, "").c_str());
     return true; // empty string is allowed if key exists
 }
 
-bool MeoStorage::saveString(const char* key, const String& value) {
+bool MeoStorage::saveString(const char* key, const std::string& value) {
     if (!_initialized || !key) return false;
 
     // Avoid flash wear by skipping redundant writes
     if (_prefs.isKey(key)) {
-        String current = _prefs.getString(key, "");
-        if (current == value) return true;
+        if (_prefs.getString(key, "").equals(value.c_str())) return true;
     }
-    size_t written = _prefs.putString(key, value);
+    size_t written = _prefs.putString(key, value.c_str());
     return (written > 0);
 }
 
@@ -55,8 +54,7 @@ bool MeoStorage::saveCString(const char* key, const char* value) {
 
     // Avoid redundant write
     if (_prefs.isKey(key)) {
-        String current = _prefs.getString(key, "");
-        if (current.equals(value)) return true;
+        if (_prefs.getString(key, "").equals(value)) return true;
     }
     // Preferences::putString(const char* key, const char* value)
     size_t written = _prefs.putString(key, value);
@@ -68,7 +66,7 @@ bool MeoStorage::loadCString(const char* key, char* buffer, size_t bufferLen) {
     if (!_prefs.isKey(key)) return false;
 
     // Read to a temporary String to check size and avoid truncation
-    String s = _prefs.getString(key, "");
+    std::string s = _prefs.getString(key, "").c_str();
     size_t needed = s.length() + 1; // include NUL terminator
     if (needed > bufferLen) {
         // Caller buffer too small

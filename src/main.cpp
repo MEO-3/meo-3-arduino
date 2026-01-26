@@ -13,8 +13,8 @@ void onTurnOn(const MeoFeatureCall& call) {
     int first = 0, second = 0;
     for (const auto& kv : call.params) {
         Serial.printf("  %s = %s\n", kv.first.c_str(), kv.second.c_str());
-        if (kv.first == "first")  first  = kv.second.toInt();
-        if (kv.first == "second") second = kv.second.toInt();
+        if (kv.first == "first")  first  = atoi(kv.second.c_str());
+        if (kv.first == "second") second = atoi(kv.second.c_str());
     }
     char msg[64];
     snprintf(msg, sizeof(msg), "LED on, sum=%d", first + second);
@@ -53,8 +53,8 @@ void loop() {
     if (millis() - last > 5000 && meo.isMqttConnected()) {
         last = millis();
         MeoEventPayload p;
-        p["temperature"] = String(random(200, 300) / 10);
-        p["humidity"]    = String(random(400, 600) / 10);
+        p["temperature"] = std::to_string(random(200, 300) / 10);
+        p["humidity"]    = std::to_string(random(400, 600) / 10);
         bool success = meo.publishEvent("humid_temp_update", p);
         meoLogger("INFO", success ? "Published humid_temp_update event" : "Failed to publish event");
     }
