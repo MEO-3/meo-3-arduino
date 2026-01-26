@@ -31,6 +31,7 @@ void MeoDevice::setDeviceInfo(const char* model,
         _logf("DEBUG", "DEVICE", "Device info set: model=%s manufacturer=%s",
                model ? model : "", manufacturer ? manufacturer : "");
     }
+    
 }
 
 void MeoDevice::beginWifi(const char* ssid, const char* pass) {
@@ -83,10 +84,9 @@ bool MeoDevice::start() {
     }
 
     // BLE + Provisioning (model/manufacturer read-only via BLE)
-    _ble.begin(_model ? _model : "MEO Device");
     _prov.setLogger(_logger);
     _prov.setDebugTags(_debugTags);
-    _prov.begin(&_ble, &_storage, _model ? _model : "", _manufacturer ? _manufacturer : "");
+    _prov.begin(&_ble, &_storage, _model, _manufacturer);
     _prov.setAutoRebootOnProvision(true, 500);
     _prov.setRuntimeStatus(_wifiReady ? "connected" : "disconnected", "disconnected");
     _prov.startAdvertising();

@@ -69,12 +69,12 @@ public:
 
 private:
     // Config
-    const char* _model = nullptr;
-    const char* _manufacturer = nullptr;
+    const char* _model;
+    const char* _manufacturer;
 
-    const char* _wifiSsid = nullptr;
-    const char* _wifiPass = nullptr;
-    const char* _gatewayHost = "meo-open-service";
+    const char* _wifiSsid;
+    const char* _wifiPass;
+    const char* _gatewayHost;
     uint16_t    _mqttPort = 1883;
 
     // Identity (from BLE/app)
